@@ -1,0 +1,36 @@
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+import Home from "./pages/Home";
+import Rules from "./pages/Rules";
+import About from "./pages/About";
+import History from "./pages/History";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Login público */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Rutas protegidas: requieren JWT */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/rules" element={<Rules />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
