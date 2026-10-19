@@ -1,4 +1,11 @@
-# 🛡️ SAST Studio — Analizador Estático de Seguridad Multilenguaje (OWASP Top 10 & Taint Analysis)
+
+## Estudiantes
+
+***Sagua Ramos, Gustavo Alonso***
+
+***Serrano Ibañez, Nestor Juice Yomar***
+
+# 🛡️ SAST Studio Analizador Estático de Seguridad Multilenguaje (OWASP Top 10 & Taint Analysis)
 
 ![Versión SAST](https://img.shields.io/badge/SAST_Engine-v0.2.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
@@ -7,6 +14,7 @@
 ![Tests](https://img.shields.io/badge/Tests-29_Passed_(0_Warnings)-success)
 
 **SAST Studio** es una plataforma integral de **Análisis Estático de Seguridad de Aplicaciones (SAST)** diseñada con arquitectura desacoplada:
+
 1. **Motor Core (`sast/`)**: Analizador léxico, sintáctico (AST) y de flujo de datos contaminados (*Taint Analysis: Source → Sanitizer → Sink*) con soporte para Python, JavaScript/TypeScript, PHP, Java, Go, C/C++, C# y SQL.
 2. **Backend API MVC (`api/`)**: API REST modular (Controladores, Servicios, Modelos y Vistas) lista para despliegue Serverless en Vercel o ejecución local con Flask.
 3. **Consola Web Interactiva (`web/`)**: Aplicación SPA en React + TypeScript + TailwindCSS para auditar código pegado, archivos/ZIPs o repositorios públicos de GitHub en tiempo real, con sugerencias interactivas de remediación (*Auto-Fix*) y exportación a **JSON, SARIF 2.1.0 y HTML**.
@@ -59,17 +67,20 @@ flowchart LR
 | `JWT_WEAKNESS` | Firma JWT Deshabilitada (`verify_signature: False`) | 🟠 Alto | `CWE-347` | `A07:2021-Auth Failures` | AST JWT Decode Analysis |
 
 ### 🧹 Reconocimiento Inteligente de Sanitizadores (`TAINT_SANITIZERS`)
+
 Para minimizar falsos positivos, `TaintAnalyzer` reconoce funciones de sanitización y limpia el estado de contaminación según la categoría:
-- **Universal (`*`)**: `int()`, `float()`, `bool()`, `uuid.UUID()`
-- **XSS**: `html.escape()`, `markupsafe.escape()`, `bleach.clean()`, `urllib.parse.quote()`
-- **Command Injection**: `shlex.quote()`, `pipes.quote()`
-- **Path Traversal**: `os.path.basename()`, `werkzeug.utils.secure_filename()`
+
+* **Universal (`*`)**: `int()`, `float()`, `bool()`, `uuid.UUID()`
+* **XSS**: `html.escape()`, `markupsafe.escape()`, `bleach.clean()`, `urllib.parse.quote()`
+* **Command Injection**: `shlex.quote()`, `pipes.quote()`
+* **Path Traversal**: `os.path.basename()`, `werkzeug.utils.secure_filename()`
 
 ---
 
 ## 🚀 Instalación y Uso Rápido
 
 ### 1. Clonar e instalar dependencias Backend
+
 ```bash
 git clone https://github.com/gs2018062254-sudo/Proyecto-Calidad.git
 cd Proyecto-Calidad
@@ -77,6 +88,7 @@ pip install -r requirements.txt
 ```
 
 ### 2. Ejecutar el CLI de SAST
+
 ```bash
 # Escanear un directorio o archivo con salida en consola
 python -m sast scan ./examples
@@ -90,6 +102,7 @@ python -m sast rules
 ```
 
 ### 3. Levantar Backend API + Frontend Web Studio
+
 ```bash
 # Terminal 1: Iniciar API Flask (Puerto 8000)
 python -m api.index
@@ -107,4 +120,5 @@ npm run dev
 ```bash
 python -m pytest -v
 ```
+
 La suite valida los endpoints REST (`/api/health`, `/api/rules`, `/api/scan`, `/api/github/scan`), las capas MVC, protección contra *Zip Slip*, sanitizadores de flujo de datos y las 12 reglas OWASP Top 10 (`29 passed, 0 warnings`).
