@@ -5,7 +5,7 @@
 
 ***Serrano Ibañez, Nestor Juice Yomar***
 
-# 🛡️ SAST Studio Analizador Estático de Seguridad Multilenguaje (OWASP Top 10 & Taint Analysis)
+# Analizador Estático de Seguridad Multilenguaje
 
 ![Versión SAST](https://img.shields.io/badge/SAST_Engine-v0.2.0-blue)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
@@ -21,7 +21,7 @@
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## Arquitectura del Sistema
 
 ```mermaid
 flowchart LR
@@ -49,7 +49,7 @@ flowchart LR
 
 ---
 
-## 📋 Catálogo de Reglas de Seguridad Activas (12 Reglas OWASP / CWE)
+## Catálogo de Reglas de Seguridad Activas (12 Reglas OWASP / CWE)
 
 | ID de Regla | Vulnerabilidad | Severidad | CWE | OWASP Top 10:2021 | Análisis |
 | :--- | :--- | :---: | :---: | :--- | :--- |
@@ -77,7 +77,7 @@ Para minimizar falsos positivos, `TaintAnalyzer` reconoce funciones de sanitizac
 
 ---
 
-## 🚀 Instalación y Uso Rápido
+## Instalación y Uso Rápido
 
 ### 1. Clonar e instalar dependencias Backend
 
@@ -115,7 +115,7 @@ npm run dev
 
 ---
 
-## 🧪 Ejecución de Pruebas Automatizadas
+## Ejecución de Pruebas Automatizadas
 
 ```bash
 python -m pytest -v
