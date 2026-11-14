@@ -121,13 +121,20 @@ jobs:
           path: |
             sarif/*.sarif
             bandit.sarif
-      # Code scanning solo está disponible gratis en repos públicos.
-      - name: Subir SARIF a Code scanning
+      # Code scanning solo está disponible gratis en repos públicos. Una subida por archivo:
+      # GitHub no acepta varios SARIF con la misma categoría.
+      - name: Subir SARIF de la API a Code scanning
         if: github.event.repository.visibility == 'public'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: sarif
-          category: sast-studio
+          sarif_file: sarif/sast-studio-api.sarif
+          category: sast-studio-api
+      - name: Subir SARIF del motor a Code scanning
+        if: github.event.repository.visibility == 'public'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif/sast-studio-motor.sarif
+          category: sast-studio-motor
 
   imagen:
     name: Imagen Docker arranca

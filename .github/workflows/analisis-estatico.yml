@@ -1,8 +1,9 @@
 name: Análisis estático (SonarCloud, Semgrep y Snyk)
 
 # Tres herramientas externas sobre el mismo código, como control de calidad y de seguridad.
-# Ninguna bloquea la integración: publican sus informes como artefactos (y en GitHub Code
-# scanning si el repositorio es público). La CI del proyecto está en ci-quality.yml.
+# Ninguna bloquea la integración por encontrar problemas: publican sus informes como artefactos
+# (y en GitHub Code scanning si el repositorio es público). Sí falla si una herramienta no puede
+# ejecutarse, para que no pase inadvertido. La CI del proyecto está en ci-quality.yml.
 #
 # Configuración (Settings → Secrets and variables → Actions):
 #   Secrets:    SONAR_TOKEN (SonarCloud) y SNYK_TOKEN (Snyk). Si falta uno, esa herramienta se
@@ -47,12 +48,15 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.lock
+      # relative_files: sin esto coverage.xml usa rutas como "__init__.py" que SonarCloud no puede
+      # resolver ("ambiguity, the file exists in several sources") y no carga la cobertura.
       - name: Pruebas con cobertura (coverage.xml para SonarCloud)
         if: env.SONAR_TOKEN != ''
         run: |
           pip install -r requirements.lock
           pip install -e . --no-deps
-          python -m pytest -q --cov=sast --cov=api --cov-report=xml
+          printf '[run]\nrelative_files = True\nsource = sast,api\n' > .coveragerc
+          python -m pytest -q --cov --cov-config=.coveragerc --cov-report=xml
       - name: Análisis SonarCloud
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@v5
@@ -70,27 +74,24 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Instalar Semgrep
-        run: pip install "semgrep==1.100.0"
-      # samples/ y tests/rules/cases/ son código vulnerable a propósito (ejemplos y casos de prueba).
+      # Imagen oficial con versión fija: instalado con pip en Python 3.12 falla al importar
+      # pkg_resources. samples/ y tests/rules/cases/ son código vulnerable a propósito.
+      # Sin --error, Semgrep sale con 0 aunque haya hallazgos: otro código es un fallo real.
       - name: Escanear
         run: |
-          semgrep scan --config p/default --metrics=off \
-            --exclude samples --exclude tests/rules/cases \
-            --sarif --output semgrep.sarif || true
-          semgrep scan --config p/default --metrics=off \
-            --exclude samples --exclude tests/rules/cases \
-            --json --output semgrep.json || true
+          for fmt in sarif json; do
+            docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.100.0 \
+              semgrep scan --config p/default --metrics=off \
+              --exclude samples --exclude tests/rules/cases \
+              --$fmt --output semgrep.$fmt .
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: semgrep
           path: semgrep.*
       - name: Subir a Code scanning (solo repos públicos)
         if: github.event.repository.visibility == 'public'
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -119,20 +120,22 @@ jobs:
           npm install -g snyk@1
           pip install -r requirements.lock
           (cd web && npm ci --no-audit --no-fund)
+      # Código de salida de Snyk: 0 sin problemas, 1 encontró vulnerabilidades (se informa, no
+      # bloquea), 2 o más es un error de la herramienta (falla el paso para que se vea).
       - name: Dependencias de Python
         if: env.SNYK_TOKEN != ''
-        run: snyk test --file=requirements.lock --package-manager=pip --command=python --json-file-output=snyk-python.json || true
+        run: snyk test --file=requirements.lock --package-manager=pip --command=python --json-file-output=snyk-python.json || [ $? -eq 1 ]
       - name: Dependencias de la web (npm)
         if: env.SNYK_TOKEN != ''
-        run: snyk test --file=web/package-lock.json --json-file-output=snyk-web.json || true
+        run: snyk test --file=web/package-lock.json --json-file-output=snyk-web.json || [ $? -eq 1 ]
       - name: Snyk Code (análisis estático)
         if: env.SNYK_TOKEN != ''
-        run: snyk code test --sarif-file-output=snyk-code.sarif || true
+        run: snyk code test --sarif-file-output=snyk-code.sarif || [ $? -eq 1 ]
       - name: Imagen Docker
         if: env.SNYK_TOKEN != ''
         run: |
           docker build -t sast-studio:snyk .
-          snyk container test sast-studio:snyk --file=Dockerfile --json-file-output=snyk-container.json || true
+          snyk container test sast-studio:snyk --file=Dockerfile --json-file-output=snyk-container.json || [ $? -eq 1 ]
       - uses: actions/upload-artifact@v4
         if: env.SNYK_TOKEN != ''
         with:
