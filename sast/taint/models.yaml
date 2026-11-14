@@ -1,0 +1,126 @@
+# Modelos de taint (fuente única de fuentes, sinks y sanitizadores), al estilo Pysa.
+#
+# Los nombres son "nombres calificados" resueltos con los imports del archivo:
+#   from flask import request   ->  request.args.get  ==  flask.request.args.get
+# Se aceptan comodines de fnmatch (`*`). Una entrada sin módulo (p. ej.
+# "request.args.get") cubre también el caso en que el import no es visible.
+
+sources:
+  http_input:
+    description: "Entrada HTTP del usuario"
+    calls:
+      - flask.request.args.get
+      - flask.request.form.get
+      - flask.request.values.get
+      - flask.request.cookies.get
+      - flask.request.headers.get
+      - flask.request.get_json
+      - flask.request.get_data
+      - request.args.get
+      - request.form.get
+      - request.values.get
+      - request.cookies.get
+      - request.headers.get
+      - request.get_json
+      - request.get_data
+      - request.GET.get
+      - request.POST.get
+      - request.REQUEST.get
+      - cgi.FieldStorage
+    attributes:
+      - flask.request.args
+      - flask.request.form
+      - flask.request.values
+      - flask.request.json
+      - flask.request.data
+      - flask.request.cookies
+      - flask.request.files
+      - request.args
+      - request.form
+      - request.values
+      - request.json
+      - request.data
+      - request.GET
+      - request.POST
+  console_input:
+    description: "Entrada por consola"
+    calls:
+      - input
+      - raw_input
+      - sys.stdin.read
+      - sys.stdin.readline
+      - sys.stdin.readlines
+
+sinks:
+  sql:
+    description: "Consulta SQL"
+    calls:
+      - { call: "*.execute", arg: 0 }
+      - { call: "*.executemany", arg: 0 }
+      - { call: "*.executescript", arg: 0 }
+      - { call: "*.raw", arg: 0 }
+      - { call: "sqlalchemy.text", arg: 0 }
+  shell:
+    description: "Comando del sistema"
+    calls:
+      - { call: "os.system", arg: 0 }
+      - { call: "os.popen", arg: 0 }
+      - { call: "subprocess.getoutput", arg: 0 }
+      - { call: "subprocess.getstatusoutput", arg: 0 }
+      - { call: "subprocess.run", arg: 0, when_kwarg: { shell: true } }
+      - { call: "subprocess.call", arg: 0, when_kwarg: { shell: true } }
+      - { call: "subprocess.Popen", arg: 0, when_kwarg: { shell: true } }
+      - { call: "subprocess.check_call", arg: 0, when_kwarg: { shell: true } }
+      - { call: "subprocess.check_output", arg: 0, when_kwarg: { shell: true } }
+  path:
+    description: "Ruta de archivo"
+    calls:
+      - { call: "open", arg: 0 }
+      - { call: "io.open", arg: 0 }
+      - { call: "os.open", arg: 0 }
+      - { call: "os.remove", arg: 0 }
+      - { call: "os.unlink", arg: 0 }
+      - { call: "os.rmdir", arg: 0 }
+      - { call: "os.rename", arg: 0 }
+      - { call: "shutil.rmtree", arg: 0 }
+      - { call: "shutil.copy", arg: 0 }
+      - { call: "flask.send_file", arg: 0 }
+      - { call: "send_file", arg: 0 }
+      - { call: "flask.send_from_directory", arg: 1 }
+      - { call: "send_from_directory", arg: 1 }
+  xss:
+    description: "Respuesta HTML"
+    calls:
+      - { call: "flask.render_template_string", arg: 0 }
+      - { call: "render_template_string", arg: 0 }
+      - { call: "markupsafe.Markup", arg: 0 }
+      - { call: "flask.Markup", arg: 0 }
+      - { call: "jinja2.Template", arg: 0 }
+      - { call: "flask.make_response", arg: 0 }
+      - { call: "make_response", arg: 0 }
+      - { call: "flask.Response", arg: 0 }
+  ssrf:
+    description: "Petición HTTP saliente"
+    calls:
+      - { call: "requests.get", arg: 0 }
+      - { call: "requests.post", arg: 0 }
+      - { call: "requests.put", arg: 0 }
+      - { call: "requests.delete", arg: 0 }
+      - { call: "requests.patch", arg: 0 }
+      - { call: "requests.head", arg: 0 }
+      - { call: "requests.request", arg: 1 }
+      - { call: "httpx.get", arg: 0 }
+      - { call: "httpx.post", arg: 0 }
+      - { call: "urllib.request.urlopen", arg: 0 }
+      - { call: "urlopen", arg: 0 }
+
+sanitizers:
+  # "*" = limpia la contaminación para todos los tipos de sink
+  "*": [int, float, bool, uuid.UUID, len]
+  xss: [html.escape, markupsafe.escape, flask.escape, bleach.clean, cgi.escape]
+  shell: [shlex.quote, pipes.quote]
+  path: [os.path.basename, werkzeug.utils.secure_filename, secure_filename]
+
+# Por defecto conservador de Pysa: una función desconocida propaga la
+# contaminación de sus argumentos (y del objeto receptor) a su resultado.
+unknown_callee: propagate_args_to_return

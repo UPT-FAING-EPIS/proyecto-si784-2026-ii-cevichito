@@ -1,35 +1,9 @@
-from .base import BaseRule
-from .basic_rules import HardcodedSecretRule, DangerousFunctionRule
-from .injection_rules import (
-    SQLInjectionRule,
-    CommandInjectionRule,
-    PathTraversalRule,
-    XSSRule,
-)
-from .crypto_rules import WeakCryptographyRule, InsecureHashPasswordRule
-from .owasp_rules import (
-    SSRFRule,
-    InsecureDeserializationRule,
-    SecurityMisconfigurationRule,
-    JWTWeaknessRule,
-)
-from .engine import AnalyzerEngine, AnalyzerConfig, DEFAULT_RULES
+"""Catálogo de reglas: contrato (`api`), registro (`registry`) y reglas YAML."""
+
+from .api import Confidence, Finding, PythonRule, Rule, RuleError, RuleMeta, Severity, TraceStep
+from .registry import RuleSet, build_ruleset, default_ruleset, register
 
 __all__ = [
-    "BaseRule",
-    "HardcodedSecretRule",
-    "DangerousFunctionRule",
-    "SQLInjectionRule",
-    "CommandInjectionRule",
-    "PathTraversalRule",
-    "XSSRule",
-    "WeakCryptographyRule",
-    "InsecureHashPasswordRule",
-    "SSRFRule",
-    "InsecureDeserializationRule",
-    "SecurityMisconfigurationRule",
-    "JWTWeaknessRule",
-    "AnalyzerEngine",
-    "AnalyzerConfig",
-    "DEFAULT_RULES",
+    "Confidence", "Finding", "PythonRule", "Rule", "RuleError", "RuleMeta", "Severity", "TraceStep",
+    "RuleSet", "build_ruleset", "default_ruleset", "register",
 ]

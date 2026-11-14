@@ -1,0 +1,63 @@
+# Entorno completo en un comando:  docker compose up --build
+# Web + API en http://localhost:8080 (mismo origen). Requiere un archivo .env
+# (copia .env.example y rellena SECRET_KEY, SESSION_HMAC_KEY y POSTGRES_PASSWORD).
+
+x-app: &app
+  build: .
+  image: sast-studio:local
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql://sast:${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}@db:5432/sast
+    RATELIMIT_STORAGE_URI: redis://valkey:6379/0
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sast
+      POSTGRES_DB: sast
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sast -d sast"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: ["flask", "db", "upgrade"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "8080:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_started
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "api.worker"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

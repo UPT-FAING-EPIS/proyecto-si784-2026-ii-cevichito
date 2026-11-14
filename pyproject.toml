@@ -1,19 +1,51 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "sast-analyzer"
-version = "0.1.0"
-description = "Analizador estático de vulnerabilidades de código (SAST)"
-requires-python = ">=3.9"
+name = "sast-studio"
+dynamic = ["version"]
+description = "Analizador estático de seguridad didáctico, con explicaciones en español y seguimiento de hallazgos entre escaneos."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
 dependencies = [
-    "click>=8.1.0",
-    "jinja2>=3.1.0",
+    # Motor (sast/)
+    "click>=8.1",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+    "pydantic>=2.6",
+    # API (api/)
+    "flask>=3.0",
+    "werkzeug>=3.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "flask-sqlalchemy>=3.1",
+    "flask-migrate>=4.0",
+    "psycopg[binary]>=3.1",
+    "pydantic-settings>=2.2",
+    "joserfc>=1.0",
+    "flask-limiter[redis]>=3.8",
+    "gunicorn>=22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pip-tools>=7.4",
+    "openapi-spec-validator>=0.7",
 ]
 
 [project.scripts]
 sast = "sast.cli:main"
 
-[build-system]
-requires = ["setuptools>=64"]
-build-backend = "setuptools.build_meta"
+[tool.setuptools.dynamic]
+version = { attr = "sast.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["sast*"]
+include = ["sast*", "api*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

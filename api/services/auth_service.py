@@ -1,260 +1,212 @@
-# -*- coding: utf-8 -*-
-"""Servicio de autenticación: JWT stateless, OAuth 2.0 Google y cuentas demo fallback."""
+"""Autenticación OIDC (flujo de código + PKCE) y acceso de desarrollo.
+
+Por defecto el proveedor es Google. Con OIDC_ISSUER se usa cualquier otro proveedor OIDC
+(Microsoft Entra, Keycloak, el de la universidad): sus endpoints se leen del documento
+de descubrimiento. El id_token se valida con `joserfc` contra las claves públicas (JWKS)
+del proveedor.
+
+Falla cerrado: sin cookie de login, con `state` distinto, `nonce` distinto o un
+id_token inválido, el login no continúa (400 genérico). El usuario se
+identifica por `sub`, nunca por email. Ver RFC 9700 y el BCP de OAuth para
+aplicaciones de navegador (RFC 10017).
+"""
 
 from __future__ import annotations
 
-import os
-import uuid
+import base64
+import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from functools import lru_cache
-from typing import Any, Dict, Optional, Tuple
+import time
+from dataclasses import dataclass
+from urllib.parse import urlencode
 
-import jwt as pyjwt
 import requests
-from werkzeug.security import check_password_hash, generate_password_hash
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import KeySet
+from itsdangerous import BadSignature, URLSafeTimedSerializer
+from sqlalchemy import select
+
+from ..extensions import db
+from ..models.entities import User
+
+AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
+LOGIN_COOKIE_MAX_AGE = 600
+_JWKS_CACHE: dict[str, tuple[dict, float]] = {}
+_DISCOVERY_CACHE: dict[str, tuple[dict, float]] = {}
+CACHE_S = 3600
 
 
-# ==========================================================================
-# Configuración desde entorno
-# ==========================================================================
-
-@lru_cache(maxsize=1)
-def _getenv(name: str, default: Optional[str] = None) -> Optional[str]:
-    val = os.environ.get(name)
-    if val is None or val == "":
-        return default
-    return val
+@dataclass(frozen=True)
+class Provider:
+    authorize_url: str
+    token_url: str
+    jwks_url: str
+    issuers: frozenset[str]
+    is_google: bool
 
 
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24
+GOOGLE = Provider(AUTHORIZE_URL, TOKEN_URL, JWKS_URL, frozenset(ISSUERS), True)
 
 
-def get_jwt_secret() -> str:
-    """Devuelve JWT_SECRET. En producción avisa si es fallback."""
-    secret = _getenv("JWT_SECRET")
-    if secret and secret != "dev-secret-change-me-please-123456":
-        return secret
-    debug = _getenv("DEBUG", "0") in ("1", "true", "True")
-    if not debug and not secret:
-        print("⚠️  [AUTH] JWT_SECRET no configurada en entorno. Establece una clave fuerte en producción.")
-    return secret or "dev-secret-change-me-please-123456"
+def provider(settings) -> Provider:
+    """Google, o el proveedor de OIDC_ISSUER según su /.well-known/openid-configuration."""
+    issuer = (settings.oidc_issuer or "").rstrip("/")
+    if not issuer:
+        return GOOGLE
+    cached = _DISCOVERY_CACHE.get(issuer)
+    if cached is None or time.time() - cached[1] > CACHE_S:
+        try:
+            resp = requests.get(f"{issuer}/.well-known/openid-configuration", timeout=(5, 10))
+            resp.raise_for_status()
+            doc = resp.json()
+        except (requests.RequestException, ValueError):
+            raise AuthError("discovery_failed") from None
+        # OIDC Discovery §4.3: el issuer del documento debe ser exactamente el configurado.
+        if str(doc.get("issuer", "")).rstrip("/") != issuer:
+            raise AuthError("discovery_issuer_mismatch")
+        cached = (doc, time.time())
+        _DISCOVERY_CACHE[issuer] = cached
+    doc = cached[0]
+    try:
+        return Provider(doc["authorization_endpoint"], doc["token_endpoint"], doc["jwks_uri"],
+                        frozenset({doc["issuer"]}), False)
+    except KeyError:
+        raise AuthError("discovery_incomplete") from None
 
 
-def get_oauth_credentials() -> Tuple[Optional[str], Optional[str]]:
-    """Retorna (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) o (None, None) si no están."""
-    cid = _getenv("GOOGLE_CLIENT_ID")
-    csec = _getenv("GOOGLE_CLIENT_SECRET")
-    if cid and csec:
-        return cid, csec
-    return None, None
+class AuthError(Exception):
+    """Fallo del flujo de login. El mensaje es genérico; el motivo va solo al log/auditoría."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
-def get_oauth_redirect_uri(request_host: Optional[str] = None) -> Optional[str]:
-    """URI de callback para OAuth Google. Primero variable explícita, luego auto-detectar."""
-    explicit = _getenv("OAUTH_REDIRECT_URI")
-    if explicit:
-        return explicit.rstrip("/")
-    if request_host:
-        scheme = _getenv("OAUTH_SCHEME") or ("http" if "localhost" in request_host or "127.0.0.1" in request_host else "https")
-        return f"{scheme}://{request_host.rstrip('/')}/api/auth/callback"
-    return None
+@dataclass
+class LoginState:
+    state: str
+    nonce: str
+    verifier: str
+    next_path: str
 
 
-# ==========================================================================
-# Cuentas Demo (Fallback para testing / entorno sin OAuth)
-# ==========================================================================
-
-def _demo_pw(pw: str) -> str:
-    return generate_password_hash(pw, method="pbkdf2:sha256", salt_length=16)
+def login_cookie_name(settings) -> str:
+    return "__Host-sast_login" if settings.is_secure else "sast_login"
 
 
-AUTH_DEMO_USERS: Tuple[Dict[str, Any], ...] = (
-    {
-        "sub": "demo|admin",
-        "email": "admin@calidad.tech",
-        "name": "Admin SAST",
-        "avatar_url": "",
-        "provider": "demo",
-        "role": "admin",
-        "password_hash": _demo_pw("Admin123!"),
-    },
-    {
-        "sub": "demo|user",
-        "email": "demo@calidad.tech",
-        "name": "Usuario Demo",
-        "avatar_url": "",
-        "provider": "demo",
-        "role": "user",
-        "password_hash": _demo_pw("Demo123!"),
-    },
-)
+def _serializer(settings) -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(settings.secret_key.get_secret_value(), salt="sast-login")
 
 
-def find_demo_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-    if not email:
-        return None
-    needle = email.strip().lower()
-    for u in AUTH_DEMO_USERS:
-        if u["email"].lower() == needle:
-            return u
-    return None
+def safe_next(path: str | None) -> str:
+    """Solo rutas relativas internas (evita redirecciones abiertas)."""
+    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path or ":" in path.split("?")[0]:
+        return "/"
+    return path[:300]
 
 
-def verify_demo_password(user: Dict[str, Any], password: str) -> bool:
-    if not user or "password_hash" not in user or not isinstance(password, str):
-        return False
-    return check_password_hash(user["password_hash"], password)
+def redirect_uri(settings) -> str:
+    return settings.oauth_redirect_uri or f"{settings.public_origin.rstrip('/')}/api/v1/auth/callback"
 
 
-def user_to_public(user: Dict[str, Any]) -> Dict[str, Any]:
-    """Devuelve el usuario sin campos privados (password_hash)."""
-    return {k: v for k, v in user.items() if k not in ("password_hash",)}
-
-
-# ==========================================================================
-# JWT — Generar / Verificar
-# ==========================================================================
-
-def generate_jwt(user: Dict[str, Any], expires_hours: int = JWT_EXPIRATION_HOURS) -> str:
-    public = user_to_public(user)
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": public.get("sub") or public.get("email") or f"user:{uuid.uuid4().hex}",
-        "email": public.get("email"),
-        "name": public.get("name"),
-        "avatar_url": public.get("avatar_url", ""),
-        "provider": public.get("provider", "unknown"),
-        "role": public.get("role", "user"),
-        "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(hours=expires_hours)).timestamp()),
-        "jti": secrets.token_urlsafe(16),
+def start_login(settings, next_path: str | None) -> tuple[str, str]:
+    """Devuelve (URL de autorización del proveedor, valor firmado para la cookie de login)."""
+    prov = provider(settings)
+    st = LoginState(secrets.token_urlsafe(32), secrets.token_urlsafe(32), secrets.token_urlsafe(64), safe_next(next_path))
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(st.verifier.encode()).digest()).rstrip(b"=").decode()
+    params = {
+        "client_id": settings.google_client_id, "response_type": "code", "scope": "openid email profile",
+        "redirect_uri": redirect_uri(settings), "state": st.state, "nonce": st.nonce,
+        "code_challenge": challenge, "code_challenge_method": "S256", "prompt": "select_account",
     }
-    return pyjwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+    if prov.is_google and settings.google_hosted_domain:
+        params["hd"] = settings.google_hosted_domain
+    cookie = _serializer(settings).dumps({"s": st.state, "n": st.nonce, "v": st.verifier, "next": st.next_path})
+    sep = "&" if "?" in prov.authorize_url else "?"
+    return f"{prov.authorize_url}{sep}{urlencode(params)}", cookie
 
 
-def verify_jwt(token: str) -> Optional[Dict[str, Any]]:
-    if not token or not isinstance(token, str):
-        return None
+def read_login_cookie(settings, raw: str | None) -> LoginState:
+    if not raw:
+        raise AuthError("missing_login_cookie")
     try:
-        payload = pyjwt.decode(
-            token.strip(),
-            get_jwt_secret(),
-            algorithms=[JWT_ALGORITHM],
-            options={"require": ["exp", "sub", "iat"]},
-        )
-        return payload
-    except (pyjwt.ExpiredSignatureError, pyjwt.InvalidTokenError, Exception):
-        return None
+        data = _serializer(settings).loads(raw, max_age=LOGIN_COOKIE_MAX_AGE)
+    except BadSignature:
+        raise AuthError("bad_login_cookie") from None
+    return LoginState(data["s"], data["n"], data["v"], safe_next(data.get("next")))
 
 
-# ==========================================================================
-# OAuth 2.0 Google (OpenID Connect — Google Sign-In más rápido y popular)
-#   Docs: https://developers.google.com/identity/protocols/oauth2/web-server
-# ==========================================================================
-
-GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_ACCESS_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
-GOOGLE_SCOPES = "openid email profile"
-
-
-def generate_oauth_state() -> str:
-    """State anti-CSRF para el flujo OAuth."""
-    return secrets.token_urlsafe(24)
+def exchange_code(settings, code: str, verifier: str) -> dict:
+    resp = requests.post(provider(settings).token_url, data={
+        "grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri(settings),
+        "client_id": settings.google_client_id, "client_secret": settings.google_client_secret.get_secret_value(),
+        "code_verifier": verifier,
+    }, headers={"Accept": "application/json"}, timeout=(5, 15))
+    if resp.status_code != 200:
+        raise AuthError(f"token_endpoint_{resp.status_code}")
+    return resp.json()
 
 
-def generate_pkce_verifier() -> str:
-    """PKCE code_verifier (recomendado para SPA-friendly OAuth 2.1)."""
-    return secrets.token_urlsafe(64)
+def fetch_jwks(url: str = JWKS_URL) -> dict:
+    cached = _JWKS_CACHE.get(url)
+    if cached is None or time.time() - cached[1] > CACHE_S:
+        resp = requests.get(url, timeout=(5, 10))
+        resp.raise_for_status()
+        cached = (resp.json(), time.time())
+        _JWKS_CACHE[url] = cached
+    return cached[0]
 
 
-def get_google_oauth_url(state: str, redirect_uri: Optional[str]) -> Optional[str]:
-    """Construye URL /authorize de Google. Retorna None si OAuth deshabilitado."""
-    client_id, _ = get_oauth_credentials()
-    if not client_id:
-        return None
-    params = [
-        f"client_id={client_id}",
-        "response_type=code",
-        f"scope={GOOGLE_SCOPES}",
-        f"state={state}",
-        "access_type=offline",
-        "prompt=consent",
-        "include_granted_scopes=true",
-    ]
-    if redirect_uri:
-        params.append(f"redirect_uri={redirect_uri}")
-    return GOOGLE_AUTHORIZE_URL + "?" + "&".join(params)
-
-
-def exchange_google_code(code: str, redirect_uri: Optional[str]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Intercambia `code` por access_token → userinfo → user dict (role=user, provider=google).
-    Retorna: (user_dict | None, error_msg | None)
-    """
-    client_id, client_secret = get_oauth_credentials()
-    if not client_id or not client_secret:
-        return None, "OAuth Google deshabilitado en este servidor. Configura GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET."
-
-    if not code or not isinstance(code, str) or not code.strip():
-        return None, "Parámetro code vacío o inválido."
-
+def validate_id_token(settings, id_token: str, nonce: str) -> dict:
+    prov = provider(settings)
     try:
-        # 1) Intercambiar code → access_token + id_token
-        tok_payload: Dict[str, Any] = {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "code": code.strip(),
-            "grant_type": "authorization_code",
-        }
-        if redirect_uri:
-            tok_payload["redirect_uri"] = redirect_uri
-
-        tok_resp = requests.post(
-            GOOGLE_ACCESS_TOKEN_URL,
-            data=tok_payload,
-            headers={"Accept": "application/json", "User-Agent": "sast-studio"},
-            timeout=20,
+        keys = KeySet.import_key_set(fetch_jwks(prov.jwks_url))
+        token = jwt.decode(id_token, keys, algorithms=["RS256"])
+        registry = jwt.JWTClaimsRegistry(
+            leeway=60,
+            iss={"essential": True, "values": sorted(prov.issuers)},
+            aud={"essential": True, "value": settings.google_client_id},
+            exp={"essential": True},
+            sub={"essential": True},
         )
-        if tok_resp.status_code != 200:
-            return None, f"Google token endpoint falló (HTTP {tok_resp.status_code}): {tok_resp.text[:120]}"
-        tok_json = tok_resp.json()
-        access_token = tok_json.get("access_token")
-        if not access_token or "error" in tok_json:
-            return None, tok_json.get("error_description") or "No se obtuvo access_token de Google."
+        registry.validate(token.claims)
+        claims = token.claims
+    except (JoseError, ValueError, KeyError, TypeError, requests.RequestException):
+        raise AuthError("invalid_id_token") from None
+    if claims.get("nonce") != nonce:
+        raise AuthError("nonce_mismatch")
+    # Google siempre manda email_verified. Otros proveedores (p. ej. Microsoft Entra) no lo
+    # incluyen: ahí solo se rechaza si viene en falso. La identidad es `sub`, no el email.
+    if prov.is_google and not claims.get("email_verified"):
+        raise AuthError("email_not_verified")
+    if not prov.is_google and claims.get("email_verified") is False:
+        raise AuthError("email_not_verified")
+    if prov.is_google and settings.google_hosted_domain and claims.get("hd") != settings.google_hosted_domain:
+        raise AuthError("hosted_domain_mismatch")
+    return dict(claims)
 
-        # 2) Obtener perfil (userinfo OpenID Connect)
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Accept": "application/json",
-            "User-Agent": "sast-studio",
-        }
-        info_resp = requests.get(GOOGLE_USERINFO_URL, headers=headers, timeout=15)
-        if info_resp.status_code != 200:
-            return None, f"Google userinfo endpoint falló (HTTP {info_resp.status_code})."
-        google_user = info_resp.json()
 
-        email = google_user.get("email") or ""
-        email_verified = bool(google_user.get("email_verified", False))
-        if not email_verified or not email:
-            return None, "Google no devolvió un correo verificado."
+def complete_login(settings, *, code: str | None, state: str | None, login: LoginState) -> User:
+    if not code or not state or not secrets.compare_digest(state, login.state):
+        raise AuthError("state_mismatch")
+    tokens = exchange_code(settings, code, login.verifier)
+    claims = validate_id_token(settings, tokens.get("id_token", ""), login.nonce)
+    # El `sub` solo es único dentro de su emisor: con otro proveedor se antepone el issuer.
+    prefix = "google" if provider(settings).is_google else (settings.oidc_issuer or "").rstrip("/")
+    email = claims.get("email") or claims.get("preferred_username", "")
+    return upsert_user(f"{prefix}|{claims['sub']}", email, claims.get("name") or email)
 
-        name = google_user.get("name") or google_user.get("given_name") or email
-        avatar_url = google_user.get("picture", "")
-        sub = google_user.get("sub") or f"google|{email}"
 
-        user_obj = {
-            "sub": f"google|{sub}",
-            "email": email,
-            "name": name,
-            "avatar_url": avatar_url,
-            "provider": "google",
-            "role": "user",
-            "google_email_verified": True,
-        }
-        return user_obj, None
-    except requests.RequestException as exc:
-        return None, f"Error de red al contactar Google: {exc.__class__.__name__}"
-    except Exception as exc:  # pragma: no cover - safety net
-        return None, f"Error inesperado OAuth Google: {exc.__class__.__name__}"
+def upsert_user(sub: str, email: str, name: str) -> User:
+    user = db.session.scalar(select(User).where(User.google_sub == sub))
+    if user is None:
+        user = User(google_sub=sub, email=email, name=name[:200])
+        db.session.add(user)
+    else:
+        user.email, user.name = email, name[:200]
+    db.session.flush()
+    return user

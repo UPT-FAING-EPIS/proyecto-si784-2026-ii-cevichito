@@ -1,0 +1,130 @@
+/* Tokens de SAST Studio. Fuente: web/DESIGN.md (derivado del DESIGN.md de Sentry, acento neutralizado).
+   Cualquier cambio aquí debe reflejarse en DESIGN.md; src/test/design-rules.test.ts mide el contraste. */
+
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --surface: #ffffff;
+  --muted: #f4f4f7;
+  --foreground: #1f1633;
+  --muted-foreground: #5d576b;
+  --border: #e4e3ea;
+  --input: #8e8a9c;
+  --primary: #150f23;
+  --primary-foreground: #ffffff;
+  --primary-hover: #2a2240;
+  --ring: #3b6fd9;
+  --destructive: #9a1b30;
+  --destructive-foreground: #ffffff;
+  --selection: #d9e4f8;
+
+  --sev-critical-bg: #fce8eb;
+  --sev-critical-fg: #9a1b30;
+  --sev-critical-bar: #d32f4c;
+  --sev-high-bg: #fdede2;
+  --sev-high-fg: #94350f;
+  --sev-high-bar: #dd6a22;
+  --sev-medium-bg: #fbf3d5;
+  --sev-medium-fg: #7a4a06;
+  --sev-medium-bar: #b8870b;
+  --sev-low-bg: #e7effb;
+  --sev-low-fg: #1d4b98;
+  --sev-low-bar: #3a76d0;
+  --sev-info-bg: #efeef3;
+  --sev-info-fg: #4a4558;
+  --sev-info-bar: #878296;
+
+  --code-keyword: #6a2fa0;
+  --code-string: #1d6a37;
+  --code-number: #8a4508;
+  --code-comment: #5d576b;
+
+  --overlay: rgb(10 8 16 / 0.55);
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --shadow-1: 0 4px 12px -2px rgb(0 0 0 / 0.12), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+  --font-sans: "Rubik Variable", Rubik, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: Monaco, Menlo, "Ubuntu Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Oscuro: por preferencia del sistema salvo que el usuario fije "claro". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #15121c;
+    --surface: #1c1825;
+    --muted: #252030;
+    --foreground: #edecf1;
+    --muted-foreground: #a7a3b3;
+    --border: #342e43;
+    --input: #6a6380;
+    --primary: #f1f0f5;
+    --primary-foreground: #150f23;
+    --primary-hover: #d9d7e2;
+    --ring: #8fb5f2;
+    --destructive: #ffa5b3;
+    --destructive-foreground: #150f23;
+    --selection: #34406a;
+    --code-keyword: #c9a8ff;
+    --code-string: #8fd6a2;
+    --code-number: #f0c27a;
+    --code-comment: #a7a3b3;
+
+    --sev-critical-bg: #3b1620;
+    --sev-critical-fg: #ffa5b3;
+    --sev-critical-bar: #f0566f;
+    --sev-high-bg: #3a2114;
+    --sev-high-fg: #ffb07d;
+    --sev-high-bar: #f08a45;
+    --sev-medium-bg: #352a10;
+    --sev-medium-fg: #f0cd6a;
+    --sev-medium-bar: #d6aa2c;
+    --sev-low-bg: #152541;
+    --sev-low-fg: #a2c5ff;
+    --sev-low-bar: #5b95eb;
+    --sev-info-bg: #27232f;
+    --sev-info-fg: #c7c3d1;
+    --sev-info-bar: #8f8a9e;
+    --shadow-1: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #15121c;
+  --surface: #1c1825;
+  --muted: #252030;
+  --foreground: #edecf1;
+  --muted-foreground: #a7a3b3;
+  --border: #342e43;
+  --input: #6a6380;
+  --primary: #f1f0f5;
+  --primary-foreground: #150f23;
+  --primary-hover: #d9d7e2;
+  --ring: #8fb5f2;
+  --destructive: #ffa5b3;
+  --destructive-foreground: #150f23;
+  --selection: #34406a;
+  --code-keyword: #c9a8ff;
+  --code-string: #8fd6a2;
+  --code-number: #f0c27a;
+  --code-comment: #a7a3b3;
+
+  --sev-critical-bg: #3b1620;
+  --sev-critical-fg: #ffa5b3;
+  --sev-critical-bar: #f0566f;
+  --sev-high-bg: #3a2114;
+  --sev-high-fg: #ffb07d;
+  --sev-high-bar: #f08a45;
+  --sev-medium-bg: #352a10;
+  --sev-medium-fg: #f0cd6a;
+  --sev-medium-bar: #d6aa2c;
+  --sev-low-bg: #152541;
+  --sev-low-fg: #a2c5ff;
+  --sev-low-bar: #5b95eb;
+  --sev-info-bg: #27232f;
+  --sev-info-fg: #c7c3d1;
+  --sev-info-bar: #8f8a9e;
+  --shadow-1: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+}

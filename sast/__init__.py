@@ -1,3 +1,4 @@
-"""SAST - Analizador Estático de Vulnerabilidades de Código."""
+"""SAST Studio: analizador estático de seguridad didáctico."""
 
-__version__ = "0.1.0"
+# Única fuente de la versión (pyproject.toml la lee de aquí).
+__version__ = "0.2.0"

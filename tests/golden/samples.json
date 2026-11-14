@@ -1,0 +1,402 @@
+[
+  {
+    "rule_id": "multi/dangerous-function",
+    "path": "report.html",
+    "line": 431,
+    "severity": "high",
+    "variant": "eval",
+    "fingerprint": "e40fd03324ad384ba79cb0489beb5d690d6eb1c148785f5806995bb92d71fc56"
+  },
+  {
+    "rule_id": "multi/dangerous-function",
+    "path": "report.html",
+    "line": 443,
+    "severity": "high",
+    "variant": "eval",
+    "fingerprint": "6924b635dfe91d4310796e98c58ee183a5872806613a5abc3be3dd998b6fc201"
+  },
+  {
+    "rule_id": "multi/dangerous-function",
+    "path": "report.html",
+    "line": 462,
+    "severity": "high",
+    "variant": "eval",
+    "fingerprint": "96f4eeca56dfe1d59f8a8c08dc0122323c34052b6ad5492c86c7a9cc60898e61"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.html",
+    "line": 576,
+    "severity": "high",
+    "variant": "aws-key",
+    "fingerprint": "97902aa8262e2562a3c83ad1d454d630276fd8def3a1ccbd58686970dc55b9b4"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.html",
+    "line": 595,
+    "severity": "high",
+    "variant": "connection-string",
+    "fingerprint": "206a4e297d9ff28e3247ebdd29bb6f4ef94310e55c6015c15b9f01763e08a98c"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.html",
+    "line": 614,
+    "severity": "high",
+    "variant": "github-token",
+    "fingerprint": "e0759d63b7cad74dcff0d4cfb9c1396a3d859172172e11d9dcce7300f4a9f222"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.html",
+    "line": 633,
+    "severity": "high",
+    "variant": "private-key",
+    "fingerprint": "87b9dfbf1a30969044a7907596aedb650218e3d7a579975571cfc94c22bb8271"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.json",
+    "line": 403,
+    "severity": "high",
+    "variant": "aws-key",
+    "fingerprint": "f9bccdbb6eee76e68a5bc5eab2ea66bd5a32cff26db9ff76d58c0bcf2409aefd"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.json",
+    "line": 423,
+    "severity": "high",
+    "variant": "connection-string",
+    "fingerprint": "71264fe127e43f8ead2d3c1ba496d389583348c77f3dcbb20dcaf6973093eb6d"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.json",
+    "line": 443,
+    "severity": "high",
+    "variant": "github-token",
+    "fingerprint": "c721ad2b9f523d8aea5d4da6834d562552276d9893e133ae7c104c593c70872e"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "report.json",
+    "line": 463,
+    "severity": "high",
+    "variant": "private-key",
+    "fingerprint": "03ece3ce4f1115774f9a237645c1b4c5da8566a20a31059fd2bfa410469357d7"
+  },
+  {
+    "rule_id": "py/sql-injection",
+    "path": "sqli_simple.py",
+    "line": 11,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "c03e0ec6d0d8f59eaf1fde2bfb7c48862f82355b7734812da00e1114a9f2cf2b"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 24,
+    "severity": "high",
+    "variant": "assignment",
+    "fingerprint": "167d1bd065fad0577b13e46781eb175a5fe5c0a08274c50e2b25f7a2820820e9"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 25,
+    "severity": "high",
+    "variant": "assignment",
+    "fingerprint": "c406774bd9d854a5d1b5dd397964659ab5a2f6d3bb8b98c6c33f01254f2db912"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 26,
+    "severity": "high",
+    "variant": "aws-key",
+    "fingerprint": "02b895bdc4ecaa1a5fd704fcb6abaab5d7d3b6bfeb2972b9e857304e73dd3870"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 27,
+    "severity": "high",
+    "variant": "connection-string",
+    "fingerprint": "130d1756147cdb64fe3b8cce37ec7ed085e104c10fb637451555ecfa627a13fa"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 28,
+    "severity": "high",
+    "variant": "assignment",
+    "fingerprint": "768a97d01809a71f2e75b96a4503215ab622c0394f933910933b80db378ee30b"
+  },
+  {
+    "rule_id": "generic/hardcoded-secret",
+    "path": "vulnerable_sample.py",
+    "line": 29,
+    "severity": "high",
+    "variant": "private-key",
+    "fingerprint": "f62c987d468e74dff666bd5c0319e019bf36dec5738cb07e710ca92053df1b19"
+  },
+  {
+    "rule_id": "py/sql-injection",
+    "path": "vulnerable_sample.py",
+    "line": 45,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "4c42462317d368644733eac1af1d7c12bf0d5a6e84786caf7b93c8b137080aa2"
+  },
+  {
+    "rule_id": "py/sql-injection",
+    "path": "vulnerable_sample.py",
+    "line": 49,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "84181d4eec8c2fb011def891355d81e705f09dd6da599f2ec39d92ff989f8492"
+  },
+  {
+    "rule_id": "py/sql-injection",
+    "path": "vulnerable_sample.py",
+    "line": 54,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "75ba70972a395f73716dcb340b748f731c6817cafc3b4e4ac90de22cf7faabae"
+  },
+  {
+    "rule_id": "py/command-injection",
+    "path": "vulnerable_sample.py",
+    "line": 64,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "5aaaecca987926e00632022bd951b1a5b8c1d150227e34823d211a527812c874"
+  },
+  {
+    "rule_id": "py/command-injection",
+    "path": "vulnerable_sample.py",
+    "line": 69,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "d4e6276af76a38a377fc5b8c515952693cfda0ad26d509c8e183c940bf6436ae"
+  },
+  {
+    "rule_id": "py/command-injection",
+    "path": "vulnerable_sample.py",
+    "line": 70,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "09a49c516a897487db8989c4c3bb8b0fd75471592d6b693a8e372560e6bd34dc"
+  },
+  {
+    "rule_id": "py/command-injection",
+    "path": "vulnerable_sample.py",
+    "line": 71,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "12f2e6ef1f20f7c82099702af38338e9832e7b2afee90178a48e869315319ed1"
+  },
+  {
+    "rule_id": "py/command-injection",
+    "path": "vulnerable_sample.py",
+    "line": 72,
+    "severity": "critical",
+    "variant": "taint",
+    "fingerprint": "5361fb63d0ca8e931a757fdddbf496053ff941759587e1c7659cbc9aef615451"
+  },
+  {
+    "rule_id": "py/dangerous-function",
+    "path": "vulnerable_sample.py",
+    "line": 77,
+    "severity": "high",
+    "variant": "eval",
+    "fingerprint": "df1b6ca6663fbeec505c30960097169f5235a5e9c36250d6c69d511e7bd64471"
+  },
+  {
+    "rule_id": "py/dangerous-function",
+    "path": "vulnerable_sample.py",
+    "line": 78,
+    "severity": "high",
+    "variant": "exec",
+    "fingerprint": "be665d02090716948859388e7994a1875d964b85378751f9488866afe32ec219"
+  },
+  {
+    "rule_id": "py/dangerous-function",
+    "path": "vulnerable_sample.py",
+    "line": 79,
+    "severity": "high",
+    "variant": "compile",
+    "fingerprint": "da02af9ee1e67890608f667e3f7e7673f2fae60a8a7350071984a4c96e81ef4f"
+  },
+  {
+    "rule_id": "py/insecure-deserialization",
+    "path": "vulnerable_sample.py",
+    "line": 84,
+    "severity": "critical",
+    "variant": "pickle.loads",
+    "fingerprint": "0a1b1fbd12f559135dd492b261b3bae2c949eca0b1f0aad5f674da01db40d999"
+  },
+  {
+    "rule_id": "py/insecure-deserialization",
+    "path": "vulnerable_sample.py",
+    "line": 85,
+    "severity": "critical",
+    "variant": "yaml.load",
+    "fingerprint": "261442f87b26ab774e5417535fe79a4b159f891ecc15509bbd42d5ffd5895bc6"
+  },
+  {
+    "rule_id": "py/insecure-deserialization",
+    "path": "vulnerable_sample.py",
+    "line": 86,
+    "severity": "critical",
+    "variant": "marshal.loads",
+    "fingerprint": "401471f783c419c9f4f019a24d644ac95e6a404a320c21dfcc7b8ef3258cedcb"
+  },
+  {
+    "rule_id": "py/insecure-deserialization",
+    "path": "vulnerable_sample.py",
+    "line": 87,
+    "severity": "critical",
+    "variant": "shelve.open",
+    "fingerprint": "2b8abcd63563d6278db19773bb995e99079d82c2b0f14bad5a39e01f6ee31423"
+  },
+  {
+    "rule_id": "py/path-traversal",
+    "path": "vulnerable_sample.py",
+    "line": 97,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "3a3955d79e40a74b3d1b174eaccc1a3e59c0c3ed12b2d5e2c71ec908b980e852"
+  },
+  {
+    "rule_id": "py/path-traversal",
+    "path": "vulnerable_sample.py",
+    "line": 103,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "7e7c4a95d9d35bcc951d2df73bba085401fe4861f1c5273a54c0e4b24ea3fac2"
+  },
+  {
+    "rule_id": "py/path-traversal",
+    "path": "vulnerable_sample.py",
+    "line": 104,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "419a7b24af9261908be3e516406b17e2256b5675205514ad3337958b86578f2e"
+  },
+  {
+    "rule_id": "py/path-traversal",
+    "path": "vulnerable_sample.py",
+    "line": 107,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "7f7aefc98fff94f2317af3fdc54bf0c0aa79de6c0812d7ee2d270ed9b159c303"
+  },
+  {
+    "rule_id": "py/path-traversal",
+    "path": "vulnerable_sample.py",
+    "line": 108,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "ab3105218d393ef72c63c20a97d7630eeadae506d66f219376325a3418a1e328"
+  },
+  {
+    "rule_id": "py/xss",
+    "path": "vulnerable_sample.py",
+    "line": 118,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "25362deb51cd8162b37b0d50df699dcb5079720be7de640c3a3d2c155beeb1cd"
+  },
+  {
+    "rule_id": "py/xss",
+    "path": "vulnerable_sample.py",
+    "line": 124,
+    "severity": "high",
+    "variant": "taint",
+    "fingerprint": "cec9b30ced7b394ec96c1687348da8889ec79a445533aa69921b65a1c8178e1a"
+  },
+  {
+    "rule_id": "py/weak-hash",
+    "path": "vulnerable_sample.py",
+    "line": 131,
+    "severity": "medium",
+    "variant": "md5",
+    "fingerprint": "8537786b384cd4fc90111b36a9791ed03cb1209ba05f878c603654368f665116"
+  },
+  {
+    "rule_id": "py/weak-hash",
+    "path": "vulnerable_sample.py",
+    "line": 135,
+    "severity": "medium",
+    "variant": "sha1",
+    "fingerprint": "ede5573938e9f0be31c99e99c7698a2ede1a700e8a149390aea0f45bb019ce72"
+  },
+  {
+    "rule_id": "py/weak-hash",
+    "path": "vulnerable_sample.py",
+    "line": 139,
+    "severity": "medium",
+    "variant": "md4",
+    "fingerprint": "7c18c320aabbd977d119c1fa8d2a20ce7691fb9793989db483e68bb27009d88b"
+  },
+  {
+    "rule_id": "py/weak-hash",
+    "path": "vulnerable_sample.py",
+    "line": 140,
+    "severity": "medium",
+    "variant": "sha1",
+    "fingerprint": "74aade497cfee3099caed9d3a200e74133550311c86d13ebc17977711ccfeb23"
+  },
+  {
+    "rule_id": "py/weak-cipher",
+    "path": "vulnerable_sample.py",
+    "line": 145,
+    "severity": "high",
+    "variant": "des",
+    "fingerprint": "72d520096695daf24a59d0375a0c7a66743ef5d3f15c94b15c4e48d8427afa8d"
+  },
+  {
+    "rule_id": "py/weak-cipher",
+    "path": "vulnerable_sample.py",
+    "line": 146,
+    "severity": "high",
+    "variant": "arc4",
+    "fingerprint": "9f4686f436925980a5b0def23c1bebfb9f354f1df0a7a1d83cfa355f6cae0448"
+  },
+  {
+    "rule_id": "py/weak-cipher",
+    "path": "vulnerable_sample.py",
+    "line": 147,
+    "severity": "high",
+    "variant": "des3",
+    "fingerprint": "94f3e60b7a659d41dc388fbb9d9eb6d8a4352b5213eb7447f49755982858a311"
+  },
+  {
+    "rule_id": "py/insecure-random",
+    "path": "vulnerable_sample.py",
+    "line": 152,
+    "severity": "low",
+    "variant": "randint",
+    "fingerprint": "f0fde0073ff2377029480031f3505b4b5607afe1eb9358d87b39bff4012da74e"
+  },
+  {
+    "rule_id": "py/insecure-random",
+    "path": "vulnerable_sample.py",
+    "line": 153,
+    "severity": "low",
+    "variant": "choice",
+    "fingerprint": "163faa7979f1b1b4db3fe3fc9c2290e3d4ba6db6a73090a3b6c0b41347f6d7d5"
+  },
+  {
+    "rule_id": "py/insecure-password-hash",
+    "path": "vulnerable_sample.py",
+    "line": 159,
+    "severity": "high",
+    "variant": "hashlib.sha256",
+    "fingerprint": "fc38c8fd66cc4e3543358382e9923d5e31c55fae0f37ccd3ff776ba92b86c88d"
+  }
+]

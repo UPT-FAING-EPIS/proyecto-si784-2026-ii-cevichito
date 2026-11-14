@@ -1,2 +1,1 @@
-# -*- coding: utf-8 -*-
-"""Paquete API de SAST Studio."""
+"""API de SAST Studio (Flask, MVC): modelos, vistas, controladores y servicios."""

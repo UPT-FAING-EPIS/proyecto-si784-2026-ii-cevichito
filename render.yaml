@@ -1,0 +1,72 @@
+# Despliegue en Render (plan gratis) + Neon (PostgreSQL gratis). Guía: docs/despliegue-render.md
+#
+# Render free no tiene workers de fondo gratis: web y worker corren en el mismo contenedor
+# (docker/start-embedded.sh). Instancia de 512 MB y 0,1 CPU: por eso hay un solo proceso de
+# Gunicorn y límites de tamaño más bajos que en compose.
+
+services:
+  - type: web
+    name: sast-studio
+    runtime: docker
+    plan: free
+    region: virginia            # cerca de Neon aws-us-east-1; no se puede cambiar después
+    dockerfilePath: ./Dockerfile
+    dockerCommand: docker/start-embedded.sh
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      - key: RUN_MIGRATIONS     # sin pre-deploy en free: migra start-embedded.sh al arrancar (una sola instancia)
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_HMAC_KEY
+        generateValue: true
+      - key: DATABASE_URL       # cadena DIRECTA de Neon (sin -pooler), con ?sslmode=require
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # PUBLIC_ORIGIN no hace falta: se toma de RENDER_EXTERNAL_URL (https://<servicio>.onrender.com).
+      # Si usas un dominio propio, añade PUBLIC_ORIGIN=https://tu-dominio.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: RATELIMIT_STORAGE_URI
+        fromService:
+          type: keyvalue
+          name: sast-ratelimit
+          property: connectionString
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: DB_POOL_SIZE
+        value: "2"
+      - key: DB_MAX_OVERFLOW
+        value: "1"
+      # Límites pensados para 512 MB de RAM (el ZIP se descomprime en memoria).
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      - key: GITHUB_MAX_MB
+        value: "20"
+      - key: MAX_TOTAL_UNCOMPRESSED_MB
+        value: "60"
+      - key: MAX_ZIP_ENTRIES
+        value: "5000"
+      - key: DEV_LOGIN_ENABLED
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+
+  # Almacén del limitador de peticiones. En free es solo memoria (se vacía al reiniciar):
+  # aceptable, porque las cuotas de escaneo se controlan además en PostgreSQL.
+  - type: keyvalue
+    name: sast-ratelimit
+    plan: free
+    region: virginia
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []             # solo conexiones internas desde los servicios de Render

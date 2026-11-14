@@ -1,92 +1,166 @@
-name: Software Quality & SAST CI/CD Pipeline
+name: CI
+
+# Cada push y cada PR comprueban, por separado: pruebas en SQLite y en PostgreSQL, la web,
+# el autoanálisis con Bandit como control cruzado y que la imagen Docker arranca.
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, "refactor/**"]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  backend-tests-and-coverage:
-    name: Pytest & Code Coverage (SAST Engine + MVC API)
+  backend:
+    name: Backend (SQLite) + cobertura
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
-
-      - name: Install Dependencies
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Dependencias
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-
-      - name: Run Unit & Integration Tests with Coverage
-        run: |
-          python -m pytest -v --cov=sast --cov=api --cov-report=term-missing --cov-report=xml
-
-      - name: Upload Coverage Artifact
-        uses: actions/upload-artifact@v4
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+      - name: Pruebas
+        run: python -m pytest -q --cov=sast --cov=api --cov-report=term --cov-report=xml
+      - uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: cobertura
           path: coverage.xml
 
-  self-dogfooding-sast:
-    name: Self-Dogfooding SAST Audit (SARIF 2.1.0)
+  backend-postgres:
+    name: API en PostgreSQL 16
     runs-on: ubuntu-latest
-    needs: backend-tests-and-coverage
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sast
+          POSTGRES_PASSWORD: sast-ci
+          POSTGRES_DB: sast_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sast -d sast_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://sast:sast-ci@localhost:5432/sast_test
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install SAST Engine
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Dependencias
         run: |
-          pip install -r requirements.txt
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+      - name: Pruebas de la API con migraciones reales
+        run: python -m pytest -q tests/api
 
-      - name: Execute SAST CLI on Own Codebase (Dogfooding)
-        run: |
-          python -m sast scan ./api -f sarif -o self-audit.sarif --min-confidence 0.85
-
-      - name: Upload SARIF Security Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: sast-self-audit-sarif
-          path: self-audit.sarif
-
-  frontend-build:
-    name: Frontend TypeScript & Vite Build (Web Studio)
+  web:
+    name: Web (lint, pruebas y build)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./web
+        working-directory: web
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: "22"
+          cache: npm
           cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
 
-      - name: Install Frontend Dependencies
-        run: npm ci
+  autoanalisis:
+    name: Autoanálisis (SAST Studio + Bandit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Dependencias
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          pip install "bandit[sarif]==1.9.4"
+      - name: Casos anotados de cada regla (ruleid / ok)
+        run: python -m sast test-rules tests/rules/cases
+      # `sast scan` recibe un único directorio: uno por cada paquete propio.
+      - name: SAST Studio sobre su propio código
+        run: |
+          mkdir -p sarif
+          python -m sast scan api -f sarif -o sarif/sast-studio-api.sarif --min-confidence medium
+          python -m sast scan sast -f sarif -o sarif/sast-studio-motor.sarif --min-confidence medium
+      - name: Bandit como control cruzado (no bloquea)
+        run: bandit -r api sast -f sarif -o bandit.sarif --exit-zero
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sarif
+          path: |
+            sarif/*.sarif
+            bandit.sarif
+      # Code scanning solo está disponible gratis en repos públicos.
+      - name: Subir SARIF a Code scanning
+        if: github.event.repository.visibility == 'public'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif
+          category: sast-studio
 
-      - name: Typecheck & Build Production SPA
-        run: npm run build
+  imagen:
+    name: Imagen Docker arranca
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t sast-studio:ci .
+      # Render ejecuta `dockerCommand` SIN el ENTRYPOINT de la imagen: aquí igual
+      # (--entrypoint), con una base vacía. Así falló el primer despliegue real, porque las
+      # migraciones solo estaban en el entrypoint.
+      - name: Arranque igual que en Render (sin entrypoint, web + worker, $PORT, BD vacía)
+        run: |
+          docker run -d --name app -p 10000:10000 --entrypoint docker/start-embedded.sh \
+            -e PORT=10000 -e ENVIRONMENT=dev -e RUN_MIGRATIONS=1 \
+            -e SECRET_KEY=ci-0123456789abcdefghijklmnopqrstuvwxyz \
+            -e SESSION_HMAC_KEY=ci-hmac-0123456789abcdefghijklmnopqrstu \
+            -e DATABASE_URL=sqlite:////tmp/ci.db \
+            sast-studio:ci
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS localhost:10000/readyz; then echo; ok=1; break; fi
+            sleep 2
+          done
+          # /readyz puede responder antes de que el worker falle: se espera y se comprueba
+          # que el contenedor sigue vivo, que el worker arrancó y que no hay errores.
+          sleep 15
+          docker logs app > app.log 2>&1
+          running=$(docker inspect app --format '{{.State.Running}}')
+          echo "readyz=$ok running=$running"
+          if [ "$ok" = 1 ] && [ "$running" = true ] && grep -q "worker listo" app.log && ! grep -q Traceback app.log; then
+            exit 0
+          fi
+          cat app.log
+          exit 1

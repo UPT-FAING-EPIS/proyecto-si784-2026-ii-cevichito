@@ -1,0 +1,368 @@
+openapi: 3.1.0
+info:
+  title: SAST Studio API
+  version: "1.0.0"
+  description: |
+    API REST v1 de SAST Studio. La SPA y la API se sirven desde el mismo origen.
+
+    - **Autenticación**: cookie de sesión `__Host-sast_session` (HttpOnly, Secure, SameSite=Strict).
+    - **CSRF**: los métodos no seguros exigen `Origin` del mismo sitio y la cabecera `X-CSRF-Token`
+      (el valor llega en `GET /api/v1/auth/me`).
+    - **Errores**: `{"error": {"code", "message", "request_id"}}` con códigos estables.
+    - **Recursos ajenos**: se responde 404 (no 403) para no revelar qué IDs existen.
+    - **Paginación**: `?limit=50&cursor=<opaco>`, respuesta `{"items": [...], "next_cursor": ...}`.
+servers:
+  - url: /
+security:
+  - session: []
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: __Host-sast_session
+  parameters:
+    ProjectId: { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ScanId: { name: scan_id, in: path, required: true, schema: { type: string, format: uuid } }
+    IssueId: { name: issue_id, in: path, required: true, schema: { type: string, format: uuid } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    CsrfToken: { name: X-CSRF-Token, in: header, required: true, schema: { type: string } }
+  responses:
+    Error:
+      description: Error con código estable
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [not_found, csrf_failed, rate_limited] }
+            message: { type: string }
+            request_id: { type: [string, "null"] }
+            details: { type: object }
+    Severity: { type: string, enum: [critical, high, medium, low, info] }
+    Me:
+      type: object
+      required: [id, email, name, csrf_token]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        csrf_token: { type: string }
+    Rule:
+      type: object
+      properties:
+        id: { type: string, examples: [py/weak-hash] }
+        name: { type: string }
+        severity: { $ref: "#/components/schemas/Severity" }
+        confidence: { type: string, enum: [high, medium, low] }
+        cwe: { type: array, items: { type: string } }
+        owasp: { type: array, items: { type: string } }
+        kind: { type: string, enum: [problem, path-problem] }
+        languages: { type: array, items: { type: string } }
+        engine: { type: string, enum: [ast, taint, heuristic] }
+        security_severity: { type: [number, "null"] }
+        explanation_es: { type: string }
+        remediation_es: { type: string }
+        example_bad: { type: string }
+        example_good: { type: string }
+        references: { type: array, items: { type: string } }
+    SeverityCounts:
+      type: object
+      properties:
+        critical: { type: integer }
+        high: { type: integer }
+        medium: { type: integer }
+        low: { type: integer }
+        info: { type: integer }
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        created_at: { type: string, format: date-time }
+        last_scan: { type: [object, "null"] }
+        open_by_severity: { $ref: "#/components/schemas/SeverityCounts" }
+    Scan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, done, failed, canceled] }
+        source: { type: string, enum: [snippet, zip, github] }
+        source_ref: { type: string }
+        category: { type: string }
+        progress: { type: object, properties: { files_done: { type: integer }, files_total: { type: integer } } }
+        summary:
+          type: object
+          properties:
+            by_severity: { $ref: "#/components/schemas/SeverityCounts" }
+            total: { type: integer }
+            new: { type: integer }
+            fixed: { type: integer }
+            persisting: { type: integer }
+            reopened: { type: integer }
+            suppressed: { type: integer }
+        rule_errors: { type: array, items: { type: object } }
+        error_code: { type: [string, "null"] }
+        queued_at: { type: string, format: date-time }
+        started_at: { type: [string, "null"], format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+    Occurrence:
+      type: object
+      properties:
+        occurrence_id: { type: string, format: uuid }
+        issue_id: { type: string, format: uuid }
+        rule_id: { type: string }
+        severity: { $ref: "#/components/schemas/Severity" }
+        confidence: { type: string }
+        path: { type: string }
+        start_line: { type: integer }
+        end_line: { type: integer }
+        message: { type: string }
+        snippet: { type: string }
+        trace: { type: array, items: { type: object, properties: { line: { type: integer }, description: { type: string } } } }
+        variant: { type: [string, "null"] }
+        change: { type: string, enum: [new, persisting, reopened] }
+        triage: { type: string }
+        lifecycle: { type: string }
+        suppressed: { type: boolean }
+    Issue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        rule_id: { type: string }
+        lifecycle: { type: string, enum: [open, fixed, reopened] }
+        triage: { type: string, enum: [untriaged, confirmed, false_positive, accepted, wont_fix] }
+        triage_justification: { type: [string, "null"] }
+        severity: { $ref: "#/components/schemas/Severity" }
+        path: { type: string }
+        line: { type: integer }
+        first_seen_at: { type: string, format: date-time }
+        fixed_at: { type: [string, "null"], format: date-time }
+    Page:
+      type: object
+      properties:
+        items: { type: array, items: {} }
+        next_cursor: { type: [string, "null"] }
+
+paths:
+  /healthz:
+    get:
+      summary: El proceso está vivo
+      security: []
+      responses: { "200": { description: OK } }
+  /readyz:
+    get:
+      summary: Base de datos accesible y migraciones al día
+      security: []
+      responses: { "200": { description: Listo }, "503": { description: No listo } }
+
+  /api/v1/config:
+    get:
+      summary: Configuración pública para la interfaz (métodos de acceso y límites)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version, auth, limits]
+                properties:
+                  version: { type: string }
+                  auth:
+                    type: object
+                    required: [oidc, google, provider, dev_login]
+                    properties:
+                      oidc: { type: boolean, description: "Hay un proveedor OIDC configurado" }
+                      google: { type: boolean, deprecated: true, description: "Alias de oidc" }
+                      provider: { type: string, description: "Nombre que se muestra en el botón de acceso" }
+                      dev_login: { type: boolean }
+                  limits:
+                    type: object
+                    additionalProperties: { type: integer }
+
+  /api/v1/auth/login:
+    get:
+      summary: Redirige al proveedor OIDC, Google por defecto (state, nonce y PKCE S256)
+      security: []
+      parameters: [{ name: next, in: query, schema: { type: string } }]
+      responses: { "302": { description: Redirección al proveedor }, "429": { $ref: "#/components/responses/Error" }, "501": { $ref: "#/components/responses/Error" }, "502": { $ref: "#/components/responses/Error" } }
+  /api/v1/auth/callback:
+    get:
+      summary: Callback del proveedor OIDC; crea la sesión y redirige a la SPA sin tokens en la URL
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses: { "302": { description: "Sesión creada (redirige a la SPA) o login rechazado (redirige a /login?error=login_failed)" } }
+  /api/v1/auth/dev-login:
+    post:
+      summary: Acceso de desarrollo (solo ENVIRONMENT=dev/test con DEV_LOGIN_ENABLED)
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string }, name: { type: string } } } } } }
+      responses: { "200": { description: Sesión creada, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/auth/logout:
+    post:
+      summary: Revoca la sesión
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      responses: { "204": { description: Sesión cerrada }, "401": { $ref: "#/components/responses/Error" }, "403": { $ref: "#/components/responses/Error" } }
+  /api/v1/auth/me:
+    get:
+      summary: Usuario actual y token CSRF
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }, "401": { $ref: "#/components/responses/Error" } }
+
+  /api/v1/rules:
+    get:
+      summary: Catálogo de reglas
+      parameters:
+        - { name: language, in: query, schema: { type: string } }
+        - { name: severity, in: query, schema: { $ref: "#/components/schemas/Severity" } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Rule" } } } } } }
+  /api/v1/rules/{rule_id}:
+    get:
+      summary: Una regla
+      parameters: [{ name: rule_id, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Rule" } } } }, "404": { $ref: "#/components/responses/Error" } }
+
+  /api/v1/projects:
+    get:
+      summary: Proyectos del usuario
+      parameters: [{ $ref: "#/components/parameters/Limit" }, { $ref: "#/components/parameters/Cursor" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Page" } } } } }
+    post:
+      summary: Crea un proyecto
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, minLength: 1, maxLength: 120 } } } } } }
+      responses: { "201": { description: Creado, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }, "400": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" } }
+  /api/v1/projects/{project_id}:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      summary: Proyecto con issues abiertos por severidad
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }, "404": { $ref: "#/components/responses/Error" } }
+    patch:
+      summary: Renombra el proyecto
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string } } } } } }
+      responses: { "200": { description: OK }, "400": { $ref: "#/components/responses/Error" }, "404": { $ref: "#/components/responses/Error" } }
+    delete:
+      summary: Borra el proyecto en cascada
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      responses: { "204": { description: Borrado }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/projects/{project_id}/scans:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    post:
+      summary: Encola un escaneo (código pegado, ZIP o repositorio público de GitHub)
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { type: object, required: [source, code], properties: { source: { const: snippet }, filename: { type: string }, code: { type: string }, rules: { type: array, items: { type: string } }, category: { type: string } } }
+                - { type: object, required: [source, repo], properties: { source: { const: github }, repo: { type: string, examples: [owner/repo] }, ref: { type: string }, rules: { type: array, items: { type: string } } } }
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary }, rules: { type: array, items: { type: string } }, category: { type: string } } }
+      responses:
+        "202": { description: Encolado, headers: { Location: { schema: { type: string } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+    get:
+      summary: Escaneos del proyecto
+      parameters: [{ $ref: "#/components/parameters/Limit" }, { $ref: "#/components/parameters/Cursor" }]
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/projects/{project_id}/issues:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      summary: Issues del proyecto
+      parameters:
+        - { name: lifecycle, in: query, schema: { type: string, enum: [open, fixed, reopened] } }
+        - { name: triage, in: query, schema: { type: string } }
+        - { name: severity, in: query, schema: { $ref: "#/components/schemas/Severity" } }
+        - { name: rule_id, in: query, schema: { type: string } }
+        - { name: path, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/projects/{project_id}/metrics:
+    parameters: [{ $ref: "#/components/parameters/ProjectId" }]
+    get:
+      summary: Series por severidad, nuevos vs corregidos, MTTR y densidad
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+
+  /api/v1/scans/{scan_id}:
+    parameters: [{ $ref: "#/components/parameters/ScanId" }]
+    get:
+      summary: Estado y resumen del escaneo (consultar cada 1-2 s mientras está en curso)
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Scan" } } } }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/scans/{scan_id}/cancel:
+    parameters: [{ $ref: "#/components/parameters/ScanId" }]
+    post:
+      summary: Cancela el escaneo
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      responses: { "202": { description: Cancelado o cancelando }, "404": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" } }
+  /api/v1/scans/{scan_id}/findings:
+    parameters: [{ $ref: "#/components/parameters/ScanId" }]
+    get:
+      summary: Hallazgos del escaneo
+      parameters:
+        - { name: severity, in: query, schema: { $ref: "#/components/schemas/Severity" } }
+        - { name: rule_id, in: query, schema: { type: string } }
+        - { name: path, in: query, schema: { type: string } }
+        - { name: change, in: query, schema: { type: string, enum: [new, persisting, reopened] } }
+        - { name: triage, in: query, schema: { type: string } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/scans/{scan_id}/diff:
+    parameters: [{ $ref: "#/components/parameters/ScanId" }]
+    get:
+      summary: Nuevos, corregidos y reabiertos respecto a otro escaneo del mismo flujo
+      parameters: [{ name: base, in: query, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" }, "422": { $ref: "#/components/responses/Error" } }
+  /api/v1/scans/{scan_id}/report:
+    parameters: [{ $ref: "#/components/parameters/ScanId" }]
+    get:
+      summary: Descarga el informe
+      parameters: [{ name: format, in: query, schema: { type: string, enum: [sarif, json, html], default: json } }]
+      responses: { "200": { description: Archivo adjunto }, "404": { $ref: "#/components/responses/Error" }, "409": { $ref: "#/components/responses/Error" } }
+
+  /api/v1/issues/{issue_id}:
+    parameters: [{ $ref: "#/components/parameters/IssueId" }]
+    get:
+      summary: Issue con su última ocurrencia y la regla
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Issue" } } } }, "404": { $ref: "#/components/responses/Error" } }
+    patch:
+      summary: Cambia el triage (false_positive, accepted y wont_fix exigen justificación)
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [triage], properties: { triage: { type: string }, justification: { type: string, maxLength: 2000 } } } } } }
+      responses: { "200": { description: OK }, "400": { $ref: "#/components/responses/Error" }, "404": { $ref: "#/components/responses/Error" }, "422": { $ref: "#/components/responses/Error" } }
+  /api/v1/issues/{issue_id}/events:
+    parameters: [{ $ref: "#/components/parameters/IssueId" }]
+    get:
+      summary: Historial del issue
+      responses: { "200": { description: OK }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/issues/{issue_id}/comments:
+    parameters: [{ $ref: "#/components/parameters/IssueId" }]
+    post:
+      summary: Añade un comentario
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [body], properties: { body: { type: string, maxLength: 2000 } } } } } }
+      responses: { "201": { description: Creado }, "400": { $ref: "#/components/responses/Error" }, "404": { $ref: "#/components/responses/Error" } }

@@ -1,0 +1,141 @@
+# Reglas declarativas para Python (motor AST sobre llamadas).
+# Formato documentado en sast/rules/yaml_rules.py.
+
+rules:
+  - id: py/weak-hash
+    name: Hash criptográfico débil
+    message: "Se usa {variant}, un hash con colisiones conocidas. Usa hashlib.sha256 o, si no es para seguridad, usedforsecurity=False."
+    severity: MEDIUM
+    confidence: HIGH
+    languages: [python]
+    engine: ast
+    previous_ids: [WEAK_HASH_MD5, WEAK_HASH_SHA1, WEAK_CRYPTO_WEAK_HASH_PHP_C]
+    metadata:
+      cwe: [CWE-327, CWE-328]
+      owasp: ["A02:2021"]
+      security_severity: 5.9
+      references: ["https://docs.python.org/3/library/hashlib.html"]
+    docs:
+      explanation: >
+        MD5 y SHA-1 están rotos: se pueden fabricar dos contenidos distintos con el mismo hash. Si el hash
+        protege una firma, un token o la integridad de un archivo, un atacante puede falsificarlo.
+      remediation: >
+        Usa `hashlib.sha256()` o superior. Si el hash no tiene fines de seguridad (una ETag, una caché),
+        decláralo con `usedforsecurity=False` para dejarlo explícito. Para contraseñas usa bcrypt o Argon2.
+      example_bad: |
+        firma = hashlib.md5(datos).hexdigest()
+      example_good: |
+        firma = hashlib.sha256(datos).hexdigest()
+        etag = hashlib.md5(datos, usedforsecurity=False).hexdigest()
+    match:
+      call-either:
+        - call: "hashlib.$ALG"
+        - { call: "hashlib.new", arg0: "$ALG" }
+        - call: "Crypto.Hash.$ALG.new"
+      where:
+        - metavar-regex: { $ALG: "(?i)^(md2|md4|md5|sha1|sha|MD5|SHA1)$" }
+      not:
+        - kwarg: { usedforsecurity: false }
+    variant: $ALG
+
+  - id: py/insecure-random
+    name: Aleatoriedad predecible
+    message: "`random.{variant}` no es criptográficamente seguro. Para tokens, claves o códigos usa el módulo `secrets`."
+    severity: LOW
+    confidence: LOW
+    languages: [python]
+    engine: ast
+    previous_ids: [INSECURE_RANDOM]
+    metadata:
+      cwe: [CWE-330, CWE-338]
+      owasp: ["A02:2021"]
+      security_severity: 3.7
+      references: ["https://docs.python.org/3/library/secrets.html"]
+    docs:
+      explanation: >
+        El módulo `random` usa un generador determinista (Mersenne Twister): observando algunas salidas se
+        pueden predecir las siguientes. Es adecuado para simulaciones, no para tokens, contraseñas ni códigos.
+      remediation: >
+        Para cualquier valor que deba ser secreto usa `secrets.token_urlsafe()`, `secrets.token_hex()` o
+        `secrets.randbelow()`. Si el uso no es de seguridad, puedes suprimir el hallazgo con un motivo.
+      example_bad: |
+        codigo = random.randint(100000, 999999)
+      example_good: |
+        codigo = secrets.randbelow(900000) + 100000
+    match:
+      call: "random.$FN"
+      where:
+        - metavar-regex: { $FN: "^(random|randint|randrange|choice|choices|sample|uniform|getrandbits|shuffle)$" }
+    variant: $FN
+
+  - id: py/insecure-deserialization
+    name: Deserialización insegura
+    message: "`{variant}` puede ejecutar código al deserializar datos no confiables."
+    severity: CRITICAL
+    confidence: HIGH
+    languages: [python]
+    engine: ast
+    previous_ids: [INSECURE_DESERIALIZATION]
+    metadata:
+      cwe: [CWE-502]
+      owasp: ["A08:2021"]
+      security_severity: 9.8
+      references: ["https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html"]
+    docs:
+      explanation: >
+        `pickle`, `marshal`, `shelve` o `yaml.load` sin cargador seguro reconstruyen objetos arbitrarios. Un
+        archivo o mensaje preparado por un atacante ejecuta código en el servidor al cargarse.
+      remediation: >
+        Para datos externos usa formatos sin código: JSON (`json.loads`) o YAML con `yaml.safe_load()`.
+        Usa `pickle` solo con datos que tu propio sistema generó y firmó.
+      example_bad: |
+        datos = pickle.loads(request.data)
+        cfg = yaml.load(texto)
+      example_good: |
+        datos = json.loads(request.data)
+        cfg = yaml.safe_load(texto)
+    match:
+      call-either:
+        - call: "pickle.$FN"
+        - call: "cPickle.$FN"
+        - call: "dill.$FN"
+        - call: "marshal.$FN"
+        - call: "shelve.open"
+        - call: "jsonpickle.decode"
+        - call: "yaml.unsafe_load"
+        - call: "yaml.load"
+      where:
+        - metavar-regex: { $FN: "^(load|loads|Unpickler)$" }
+      not:
+        - kwarg-regex: { Loader: "(Safe|CSafe|Base)Loader" }
+    variant: $CALL
+
+  - id: py/dangerous-function
+    name: Ejecución dinámica de código
+    message: "`{variant}()` ejecuta código construido en tiempo de ejecución."
+    severity: HIGH
+    confidence: MEDIUM
+    languages: [python]
+    engine: ast
+    previous_ids: [DANGEROUS_FUNCTION]
+    metadata:
+      cwe: [CWE-95]
+      owasp: ["A03:2021"]
+      security_severity: 8.8
+      references: ["https://docs.python.org/3/library/functions.html#eval"]
+    docs:
+      explanation: >
+        `eval()`, `exec()` y `compile()` ejecutan texto como código Python. Si ese texto puede venir, aunque
+        sea en parte, del usuario, el atacante ejecuta lo que quiera con los permisos de la aplicación.
+      remediation: >
+        Para leer literales usa `ast.literal_eval()`; para configuraciones, JSON o YAML seguro; para elegir
+        una operación, un diccionario de funciones permitidas en lugar de construir código.
+      example_bad: |
+        resultado = eval(request.args["expr"])
+      example_good: |
+        valores = ast.literal_eval(texto)
+    match:
+      call: "$FN"
+      where:
+        - metavar-regex: { $FN: "^(eval|exec|compile)$" }
+    variant: $FN

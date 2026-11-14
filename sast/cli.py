@@ -1,346 +1,155 @@
+"""CLI `sast`: usa el mismo registro y el mismo runner que la API (RF-12)."""
+
 from __future__ import annotations
 
-import os
+import json
 import sys
 from pathlib import Path
-from typing import Optional, List
 
-try:
-    import click
-except ImportError:
-    print("Error: La dependencia 'click' no está instalada. Ejecuta: pip install click jinja2", file=sys.stderr)
-    sys.exit(1)
+import click
 
 from . import __version__
-from .rules.engine import AnalyzerEngine, AnalyzerConfig
-from .models.finding import ScanResult, Severity
-from .reports.console import ConsoleReporter
-from .reports.json_report import JsonReporter
-from .reports.html_report import HtmlReporter
+from .engine.runner import Engine, EngineConfig
+from .reports import render_console, render_html, to_sarif
+from .rules.api import Confidence, Severity
+from .rules.registry import build_ruleset, default_ruleset
+
+_SEVERITIES = ["critical", "high", "medium", "low", "info"]
 
 
-SUPPORTED_FORMATS = {"text", "json", "html", "sarif"}
+def _utf8_stdout() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:  # pragma: no cover
+                pass
 
 
-def _build_config(
-    exclude_tests: bool,
-    exclude_patterns: List[str],
-    min_confidence: float,
-) -> AnalyzerConfig:
-    config = AnalyzerConfig()
-    config.exclude_tests = exclude_tests
-    config.min_confidence = min_confidence
-    if exclude_patterns:
-        config.excluded_patterns.extend(exclude_patterns)
-    return config
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(version=__version__, prog_name="sast")
+def main() -> None:
+    """SAST Studio: análisis estático de seguridad con explicaciones en español."""
+    _utf8_stdout()
 
 
-def _validate_output(ctx, param, value):
-    if value:
-        suffix = Path(value).suffix.lower()
-    return value
-
-
-@click.group(
-    help="🛡️  SAST - Analizador Estático de Vulnerabilidades de Código",
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
-@click.version_option(version=__version__, prog_name="sast", message="%(prog)s v%(version)s")
-def main():
-    """Comando principal."""
-    if hasattr(sys.stdout, "reconfigure"):
-        try:
-            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
-
-
-@main.command("scan", short_help="Escanea archivos o directorios en busca de vulnerabilidades")
-@click.argument("target", nargs=1, type=click.Path(exists=True, readable=True))
-@click.option(
-    "-f", "--format", "fmt",
-    type=click.Choice(sorted(SUPPORTED_FORMATS), case_sensitive=False),
-    default="text",
-    show_default=True,
-    help="Formato del reporte de salida.",
-)
-@click.option(
-    "-o", "--output",
-    type=click.Path(dir_okay=False, writable=True),
-    default=None,
-    help="Ruta del archivo de salida (si no se especifica, stdout).",
-)
-@click.option(
-    "-c", "--min-confidence",
-    type=click.FloatRange(0.0, 1.0),
-    default=0.0,
-    show_default=True,
-    help="Nivel mínimo de confianza para reportar un hallazgo (0.0 - 1.0).",
-)
-@click.option(
-    "--severity-threshold",
-    type=click.Choice(["critical", "high", "medium", "low", "info"], case_sensitive=False),
-    default=None,
-    help="Devuelve código de salida no-cero si se encuentra al menos una vulnerabilidad con esta severidad o mayor.",
-)
-@click.option(
-    "--include-tests/--no-include-tests",
-    default=False,
-    show_default=True,
-    help="Incluye/excluye archivos de test (tests/, test_*, *_test.py).",
-)
-@click.option(
-    "--exclude",
-    "exclude_patterns",
-    multiple=True,
-    help="Patrón glob adicional a excluir (se puede pasar múltiples veces).",
-)
-@click.option(
-    "-v", "--verbose",
-    is_flag=True,
-    default=False,
-    help="Muestra flujo de datos y recomendaciones detalladas en consola.",
-)
-@click.option(
-    "--no-color",
-    is_flag=True,
-    default=False,
-    help="Desactiva colores en la salida de consola.",
-)
-def scan(
-    target: str,
-    fmt: str,
-    output: Optional[str],
-    min_confidence: float,
-    severity_threshold: Optional[str],
-    include_tests: bool,
-    exclude_patterns: List[str],
-    verbose: bool,
-    no_color: bool,
-):
-    """
-    Ejecuta el análisis estático de seguridad sobre TARGET
-    (un archivo .py o un directorio con código Python).
-    """
-    config = _build_config(
+@main.command()
+@click.argument("target", type=click.Path(exists=True, path_type=Path))
+@click.option("-f", "--format", "fmt", type=click.Choice(["text", "json", "sarif", "html"]), default="text", show_default=True)
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path), help="Archivo de salida (por defecto, stdout).")
+@click.option("--min-confidence", type=click.Choice(["low", "medium", "high"]), default="low", show_default=True)
+@click.option("--min-severity", type=click.Choice(_SEVERITIES), default="info", show_default=True)
+@click.option("--severity-threshold", type=click.Choice(_SEVERITIES), help="Sale con código 1 si hay hallazgos de esta severidad o mayor.")
+@click.option("--include-tests/--exclude-tests", default=False, show_default=True, help="Incluir archivos de test.")
+@click.option("--exclude", multiple=True, help="Patrón glob a excluir (repetible).")
+@click.option("--rules", "rule_ids", help="IDs de reglas separados por comas.")
+@click.option("--rules-dir", type=click.Path(exists=True, file_okay=False, path_type=Path), multiple=True, help="Directorio extra con reglas YAML.")
+@click.option("--fail-on-rule-error", is_flag=True, help="Sale con código 2 si alguna regla falla.")
+@click.option("-v", "--verbose", is_flag=True, help="Muestra trazas y cómo corregir.")
+@click.option("--no-color", is_flag=True)
+def scan(target: Path, fmt: str, output: Path | None, min_confidence: str, min_severity: str, severity_threshold: str | None,
+         include_tests: bool, exclude: tuple[str, ...], rule_ids: str | None, rules_dir: tuple[Path, ...],
+         fail_on_rule_error: bool, verbose: bool, no_color: bool) -> None:
+    """Analiza TARGET (archivo o directorio)."""
+    ruleset = build_ruleset(rules_dir) if rules_dir else default_ruleset()
+    for err in ruleset.load_errors:
+        click.echo(f"aviso: no se cargó {err.source}: {err.message}", err=True)
+    if rule_ids:
+        ruleset = ruleset.select(ids=[r.strip() for r in rule_ids.split(",") if r.strip()])
+    config = EngineConfig(
+        min_confidence=Confidence.parse(min_confidence),
+        min_severity=Severity.parse(min_severity),
         exclude_tests=not include_tests,
-        exclude_patterns=list(exclude_patterns),
-        min_confidence=min_confidence,
+        exclude_globs=exclude,
     )
-
-    engine = AnalyzerEngine(config=config)
-    result: ScanResult = engine.scan(target)
-
-    fmt = fmt.lower()
-    exit_code = _compute_exit_code(result, severity_threshold)
-
-    try:
-        if fmt == "text":
-            reporter = ConsoleReporter(use_colors=not no_color)
-            if output:
-                with open(output, "w", encoding="utf-8") as fh:
-                    reporter.generate(result, output=fh, verbose=verbose)
-            else:
-                reporter.generate(result, verbose=verbose)
-
-        elif fmt == "json":
-            reporter = JsonReporter()
-            text = reporter.generate(result, output_path=output)
-            if not output:
-                click.echo(text)
-
-        elif fmt == "sarif":
-            reporter = JsonReporter()
-            text = reporter.generate_sarif(result, output_path=output)
-            if not output:
-                click.echo(text)
-
-        elif fmt == "html":
-            reporter = HtmlReporter()
-            text = reporter.generate(result, output_path=output)
-            if not output:
-                click.echo(text, nl=False)
-
-    except BrokenPipeError:
-        pass
-
-    sys.exit(exit_code)
-
-
-@main.command("list-rules", short_help="Muestra las reglas de seguridad activas")
-def list_rules():
-    """Lista todas las reglas de detección disponibles."""
-    _print_rules()
-
-
-@main.command("rules", short_help="Alias de list-rules: muestra las reglas de seguridad activas")
-def rules_alias():
-    """Alias para listar todas las reglas de detección disponibles."""
-    _print_rules()
-
-
-def _print_rules():
-    engine = AnalyzerEngine()
-    rules = engine.list_rules()
-
-    click.secho("🛡️  Reglas de seguridad activas:", bold=True, fg="bright_blue")
-    click.echo()
-    for rule in rules:
-        sev = rule["severity"].lower()
-        color_map = {
-            "critical": "bright_red",
-            "high": "bright_yellow",
-            "medium": "yellow",
-            "low": "green",
-            "info": "blue",
-        }
-        emoji_map = {
-            "critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢", "info": "🔵",
-        }
-        emoji = emoji_map.get(sev, "⚪")
-        color = color_map.get(sev, "white")
-        cwe = rule.get("cwe") or ""
-        click.echo(
-            f"  {emoji} {click.style(rule['id'], bold=True, fg=color)} "
-            f"- {rule['title']} "
-            f"{click.style(cwe, dim=True) if cwe else ''}"
-        )
-    click.echo()
-    click.secho(f"  Total: {len(rules)} reglas activas", bold=True)
-
-
-@main.command("demo", short_help="Genera un reporte de demo con un código vulnerable incluido")
-@click.option("-f", "--format", "fmt", type=click.Choice(["text", "json", "html"]), default="text", show_default=True)
-@click.option("-o", "--output", type=click.Path(dir_okay=False, writable=True), default=None)
-def demo(fmt: str, output: Optional[str]):
-    """Ejecuta el análisis sobre una muestra de código vulnerable integrada."""
-    demo_source = _get_demo_source()
-
-    engine = AnalyzerEngine()
-    findings = engine.scan_source(demo_source, file_path="demo.py")
-
-    from .models.finding import ScanResult
-    from datetime import datetime, timezone
-    result = ScanResult(target="demo.py", files_scanned=1, findings=findings)
-    result.end_time = datetime.now(timezone.utc).isoformat()
-
-    if fmt == "text":
-        ConsoleReporter().generate(result, verbose=True)
-    elif fmt == "json":
-        text = JsonReporter().generate(result, output_path=output)
-        if not output:
-            click.echo(text)
+    report = Engine(ruleset, config).scan_path(target)
+    metas = ruleset.metas()
+    if fmt == "json":
+        text = json.dumps(report.to_dict(), indent=2, ensure_ascii=False)
+    elif fmt == "sarif":
+        text = json.dumps(to_sarif(report, metas), indent=2, ensure_ascii=False)
     elif fmt == "html":
-        HtmlReporter().generate(result, output_path=output)
-        if output:
-            click.secho(f"✅ Reporte HTML generado en: {output}", bold=True, fg="green")
+        text = render_html(report, metas)
+    else:
+        text = render_console(report, metas, color=not no_color and output is None and sys.stdout.isatty(), verbose=verbose)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(text, encoding="utf-8")
+        click.echo(f"Informe escrito en {output}", err=True)
+    else:
+        click.echo(text, nl=False)
 
-    sys.exit(0)
-
-
-def _compute_exit_code(result: ScanResult, severity_threshold: Optional[str]) -> int:
-    if severity_threshold is None:
-        return 0
-    threshold = Severity.from_str(severity_threshold)
-    order = threshold.order
-    for f in result.findings:
-        if f.severity.order <= order:
-            return 1
-    return 0
-
-
-def _get_demo_source() -> str:
-    return '''# -*- coding: utf-8 -*-
-"""Código vulnerable de demostración para el SAST Analyzer."""
-
-import sqlite3
-import os
-import subprocess
-import pickle
-import hashlib
-from flask import Flask, request, render_template_string, send_file
-
-app = Flask(__name__)
-
-# Secreto hardcodeado
-API_KEY = "sk-abcdefghijklmnopqrstuvwxyz1234567890"
-DB_PASSWORD = "password123"
+    if fail_on_rule_error and report.rule_errors:
+        sys.exit(2)
+    if severity_threshold:
+        threshold = Severity.parse(severity_threshold)
+        if any(f.severity >= threshold for f in report.active_findings):
+            sys.exit(1)
 
 
-@app.route("/login", methods=["POST"])
-def login():
-    username = request.form.get("username")
-    password = request.form.get("password")
-
-    # SQL Injection clásico
-    conn = sqlite3.connect("app.db")
-    cursor = conn.cursor()
-    query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
-    cursor.execute(query)
-    user = cursor.fetchone()
-    return str(user)
-
-
-@app.route("/read_file")
-def read_file():
-    # Path Traversal
-    filename = request.args.get("file", "")
-    path = "./uploads/" + filename
-    with open(path, "r") as f:
-        return f.read()
+@main.command("rules")
+@click.option("--format", "fmt", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def list_rules(fmt: str) -> None:
+    """Lista el catálogo de reglas."""
+    ruleset = default_ruleset()
+    if fmt == "json":
+        click.echo(json.dumps([m.to_dict() for m in ruleset.metas()], indent=2, ensure_ascii=False))
+        return
+    for m in ruleset.metas():
+        heur = " (heurística)" if m.engine == "heuristic" else ""
+        click.echo(f"{m.id:<34} {m.severity.label:<9} {', '.join(m.cwe):<22} {m.name}{heur}")
+    click.echo(f"\n{len(ruleset)} reglas")
 
 
-@app.route("/ping")
-def ping():
-    host = request.args.get("host", "localhost")
-    # Command Injection
-    result = os.system(f"ping -c 1 {host}")
-    return str(result)
+@main.command("test-rules")
+@click.argument("cases_dir", type=click.Path(exists=True, file_okay=False, path_type=Path), default=Path("tests/rules/cases"))
+def test_rules(cases_dir: Path) -> None:
+    """Ejecuta los casos anotados (# ruleid: / # ok:) de CASES_DIR."""
+    from .testing import case_files, run_case
+
+    failed = 0
+    for case in case_files(cases_dir):
+        res = run_case(case)
+        status = "ok " if res.ok else "FALLA"
+        click.echo(f"{status} {case.name}")
+        for rid, line in res.missing:
+            click.echo(f"      falta {rid} en la línea {line}")
+        for rid, line in res.unexpected:
+            click.echo(f"      sobra {rid} en la línea {line}")
+        failed += not res.ok
+    click.echo(f"\n{failed} casos fallidos" if failed else "\nTodos los casos pasan")
+    sys.exit(1 if failed else 0)
 
 
-@app.route("/run")
-def run_cmd():
-    cmd = request.args.get("cmd")
-    subprocess.run(cmd, shell=True)
-    return "ok"
+
+@main.command("bench")
+@click.option("--cases", "cases_dir", type=click.Path(exists=True, file_okay=False, path_type=Path),
+              default=Path("tests/rules/cases"), show_default=True, help="Corpus anotado propio.")
+@click.option("--owasp", "owasp_dir", type=click.Path(exists=True, file_okay=False, path_type=Path),
+              help="Raíz de OWASP Benchmark for Python (con expectedresults-*.csv y testcode/).")
+@click.option("--real", "real", multiple=True, metavar="NOMBRE=DIR",
+              help="Repositorio real a describir (repetible), p. ej. 'vulpy (bad)=corpus/vulpy/bad'.")
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path), help="Archivo Markdown de salida.")
+def bench(cases_dir: Path, owasp_dir: Path | None, real: tuple[str, ...], output: Path | None) -> None:
+    """Compara SAST Studio con Bandit y Semgrep CE sobre los mismos archivos."""
+    from . import bench as b
+
+    parts = ["## 1. OWASP Benchmark for Python\n"]
+    if owasp_dir:
+        parts.append(b.owasp_report(owasp_dir)[0])
+    else:
+        parts.append("_No se pasó `--owasp`._")
+    parts += ["\n## 2. Corpus anotado propio\n", b.annotated_report(cases_dir)[0], "\n## 3. Repositorios reales\n"]
+    for item in real:
+        name, _, path = item.partition("=")
+        parts += [b.real_report(name.strip(), Path(path.strip())), ""]
+    text = "\n".join(parts) + "\n"
+    if output:
+        output.write_text(text, encoding="utf-8")
+        click.echo(f"Informe escrito en {output}")
+    else:
+        click.echo(text)
 
 
-@app.route("/greet")
-def greet():
-    name = request.args.get("name", "mundo")
-    # XSS via render_template_string
-    template = f"<h1>Hola {name}!</h1>"
-    return render_template_string(template)
-
-
-@app.route("/upload", methods=["POST"])
-def upload():
-    data = request.data
-    # Deserialización insegura
-    obj = pickle.loads(data)
-    return str(obj)
-
-
-def compute_password_hash(password: str) -> str:
-    # Hash débil para contraseñas
-    return hashlib.md5(password.encode()).hexdigest()
-
-
-def insecure_random_token() -> str:
-    import random
-    # Random no criptográfico
-    return str(random.randint(100000, 999999))
-
-
-@app.route("/exec")
-def execute_code():
-    code = request.args.get("code")
-    # Función peligrosa
-    eval(code)
-    return "Ejecutado"
-'''
-
-
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

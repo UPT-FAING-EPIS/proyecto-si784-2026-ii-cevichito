@@ -1,124 +1,202 @@
+# SAST Studio
 
 ## Estudiantes
 
-***Sagua Ramos, Gustavo Alonso***
+- ***Sagua Ramos, Gustavo Alonso***
+- ***Serrano Ibañez, Nestor Juice Yomar***
 
-***Serrano Ibañez, Nestor Juice Yomar***
+| Enlace | URL |
+|---|---|
+| Repositorio | <https://github.com/UPT-FAING-EPIS/proyecto-si784-2026-ii-cevichito> |
+| Aplicación publicada | <https://sast-studio.onrender.com> (plan gratis: tarda 1–2 min en despertar) |
 
-# Analizador Estático de Seguridad Multilenguaje
-
-![Versión SAST](https://img.shields.io/badge/SAST_Engine-v0.2.0-blue)
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
-![React](https://img.shields.io/badge/Frontend-React_19_%2B_TypeScript-61DAFB?logo=react&logoColor=black)
-![OWASP Top 10](https://img.shields.io/badge/Cobertura-OWASP_Top_10_(12_Reglas)-10b981)
-![Tests](https://img.shields.io/badge/Tests-29_Passed_(0_Warnings)-success)
-
-**SAST Studio** es una plataforma integral de **Análisis Estático de Seguridad de Aplicaciones (SAST)** diseñada con arquitectura desacoplada:
-
-1. **Motor Core (`sast/`)**: Analizador léxico, sintáctico (AST) y de flujo de datos contaminados (*Taint Analysis: Source → Sanitizer → Sink*) con soporte para Python, JavaScript/TypeScript, PHP, Java, Go, C/C++, C# y SQL.
-2. **Backend API MVC (`api/`)**: API REST modular (Controladores, Servicios, Modelos y Vistas) lista para despliegue Serverless en Vercel o ejecución local con Flask.
-3. **Consola Web Interactiva (`web/`)**: Aplicación SPA en React + TypeScript + TailwindCSS para auditar código pegado, archivos/ZIPs o repositorios públicos de GitHub en tiempo real, con sugerencias interactivas de remediación (*Auto-Fix*) y exportación a **JSON, SARIF 2.1.0 y HTML**.
+Los documentos del curso (FD01 a FD06) están en la raíz del repositorio.
 
 ---
 
-## Arquitectura del Sistema
+Analizador estático de seguridad **didáctico y autoalojado**. Cada hallazgo explica en español
+qué ocurre, por qué es peligroso y cómo corregirlo, con un ejemplo vulnerable y otro corregido,
+y su CWE y OWASP. Guarda el historial de cada proyecto para ver qué hallazgos son nuevos, cuáles
+se corrigieron y cuáles siguen ahí. Se instala con Docker y PostgreSQL, sin enviar el código a
+terceros.
 
-```mermaid
-flowchart LR
-    subgraph Input["Fuentes de Entrada"]
-        A1["Editor de Código"]
-        A2["Archivos / ZIP"]
-        A3["Repositorio GitHub"]
-        A4["CLI (python -m sast)"]
-    end
+Está pensado para **aprender seguridad**: en un curso, en un laboratorio o por tu cuenta. No
+pretende sustituir a un escáner de producción como Semgrep Pro o CodeQL.
 
-    subgraph Engine["Motor SAST (sast/)"]
-        B1["PythonParser (AST + Multilenguaje)"]
-        B2["TaintAnalyzer (Sources → Sanitizers → Sinks)"]
-        B3["12 Reglas OWASP Top 10 / CWE"]
-    end
+## Qué hace
 
-    subgraph Output["Reportes y Remediación"]
-        C1["UI Interactiva + Auto-Fix Snippet"]
-        C2["SARIF 2.1.0 (GitHub Code Scanning)"]
-        C3["Reporte Ejecutivo HTML / JSON"]
-    end
+- **Analiza código Python** con reglas sobre el árbol sintáctico y un análisis de *taint* que
+  sigue los datos del usuario entre funciones de un mismo archivo, hasta una consulta SQL, un
+  comando del sistema, una ruta de archivo, etc.
+- **Busca patrones en JavaScript/TypeScript, PHP, Java, Kotlin, Go, Ruby, C# y plantillas
+  HTML/Vue/Svelte** con reglas heurísticas de menor confianza.
+- **Explica cada hallazgo:** el recorrido del dato desde la entrada hasta el uso peligroso, qué
+  ocurre, cómo se corrige y un ejemplo vulnerable y otro corregido.
+- **Mide el progreso entre escaneos:** nuevos, persisten, corregidos y reabiertos. Cada problema
+  tiene una huella estable que sobrevive a los cambios de línea, y tu revisión (falso positivo,
+  riesgo aceptado) se conserva al volver a escanear.
+- **Analiza código pegado, un ZIP o un repositorio público de GitHub.** Omite pruebas,
+  dependencias y archivos minificados, igual que la línea de comandos.
+- **Exporta** a SARIF 2.1.0 (GitHub Code Scanning, DefectDojo), JSON y HTML.
+- **Se usa desde la web o desde la línea de comandos** (`python -m sast`).
 
-    Input --> Engine --> Output
-```
+## Cuánto detecta
 
----
+Medido con `sast bench` sobre el corpus neutral
+[OWASP Benchmark for Python](https://github.com/OWASP-Benchmark/BenchmarkPython) (1230 casos),
+frente a Bandit 1.9.4 y Semgrep CE 1.100.0 con reglas públicas. La métrica es la de OWASP:
+**Youden = tasa de verdaderos positivos − tasa de falsos positivos** (0 = no distingue lo
+vulnerable de lo seguro; 100 = perfecto).
 
-## Catálogo de Reglas de Seguridad Activas (12 Reglas OWASP / CWE)
+| | SAST Studio | Bandit | Semgrep CE |
+|---|---:|---:|---:|
+| Media, 14 categorías | **+20** | +17 | +4 |
+| Media, las 8 categorías con reglas propias | **+35** | +31 | +8 |
+| Inyección SQL | **+100** | +0 | +0 |
 
-| ID de Regla | Vulnerabilidad | Severidad | CWE | OWASP Top 10:2021 | Análisis |
-| :--- | :--- | :---: | :---: | :--- | :--- |
-| `SQL_INJECTION` | Inyección SQL | 🔴 Crítico | `CWE-89` | `A03:2021-Injection` | Taint Flow + AST + Regex |
-| `COMMAND_INJECTION` | Inyección de Comandos OS | 🔴 Crítico | `CWE-78` | `A03:2021-Injection` | Taint Flow + `shell=True` |
-| `INSECURE_DESERIALIZATION` | Deserialización Insegura (`pickle`, `yaml.load`) | 🔴 Crítico | `CWE-502` | `A08:2021-Integrity Failures` | AST + Multilenguaje |
-| `PATH_TRAVERSAL` | Path Traversal / LFI | 🟠 Alto | `CWE-22` | `A01:2021-Broken Access Control` | Taint Flow + Regex |
-| `XSS` | Cross-Site Scripting (Reflejado / DOM) | 🟠 Alto | `CWE-79` | `A03:2021-Injection` | Taint Flow + React/Vue/PHP |
-| `SSRF` | Server-Side Request Forgery | 🟠 Alto | `CWE-918` | `A10:2021-SSRF` | Taint Flow (`requests`, `urllib`, `fetch`) |
-| `HARDCODED_SECRET` | Secretos y Credenciales Expuestas | 🟠 Alto | `CWE-798` | `A07:2021-Auth Failures` | Entropía de Shannon + Patrones |
-| `DANGEROUS_FUNCTION` | Uso de Funciones Peligrosas (`eval`, `exec`) | 🟠 Alto | `CWE-676` | `A03:2021-Injection` | AST + Multilenguaje |
-| `WEAK_CRYPTO` | Criptografía Débil (`MD5`, `SHA1`, `DES`, `ECB`) | 🟠 Alto | `CWE-327` | `A02:2021-Cryptographic Failures` | AST + Constantes RSA |
-| `INSECURE_PASSWORD_HASH` | Hash de Contraseña sin Sal / Débil | 🟠 Alto | `CWE-916` | `A02:2021-Cryptographic Failures` | Contexto AST de Asignación |
-| `SECURITY_MISCONFIGURATION` | SSL `verify=False`, `debug=True`, CORS | 🟠 Alto | `CWE-295` | `A05:2021-Security Misconfiguration` | AST Keyword Analysis |
-| `JWT_WEAKNESS` | Firma JWT Deshabilitada (`verify_signature: False`) | 🟠 Alto | `CWE-347` | `A07:2021-Auth Failures` | AST JWT Decode Analysis |
+Puntos débiles medidos: inyección de comandos (−46), XSS (−7) y path traversal (+4). Las causas
+y el método completo están en [`docs/benchmark.md`](docs/benchmark.md).
 
-### 🧹 Reconocimiento Inteligente de Sanitizadores (`TAINT_SANITIZERS`)
+**Límites conocidos**
 
-Para minimizar falsos positivos, `TaintAnalyzer` reconoce funciones de sanitización y limpia el estado de contaminación según la categoría:
+- El análisis de *taint* es entre funciones, pero **dentro de cada archivo**: no sigue un dato
+  que entra por un archivo y llega a la consulta en otro.
+- Fuera de Python solo hay reglas heurísticas.
+- Semgrep Pro y CodeQL no se evaluaron.
 
-* **Universal (`*`)**: `int()`, `float()`, `bool()`, `uuid.UUID()`
-* **XSS**: `html.escape()`, `markupsafe.escape()`, `bleach.clean()`, `urllib.parse.quote()`
-* **Command Injection**: `shlex.quote()`, `pipes.quote()`
-* **Path Traversal**: `os.path.basename()`, `werkzeug.utils.secure_filename()`
+## Puesta en marcha
 
----
+### Con Docker (recomendado)
 
-## Instalación y Uso Rápido
-
-### 1. Clonar e instalar dependencias Backend
+Requisitos: Docker con Compose v2.
 
 ```bash
-git clone https://github.com/gs2018062254-sudo/Proyecto-Calidad.git
-cd Proyecto-Calidad
-pip install -r requirements.txt
+cp .env.example .env
 ```
 
-### 2. Ejecutar el CLI de SAST
+Edita `.env`:
+
+- `SECRET_KEY` y `SESSION_HMAC_KEY`: genera cada uno con
+  `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+- `POSTGRES_PASSWORD` y la misma contraseña dentro de `DATABASE_URL`.
+- Para probar sin configurar Google: `ENVIRONMENT=dev` y `DEV_LOGIN_ENABLED=true`. Así entras
+  con cualquier correo y sin contraseña. **Nunca en un servidor público.**
 
 ```bash
-# Escanear un directorio o archivo con salida en consola
-python -m sast scan ./examples
-
-# Generar reporte en formato SARIF 2.1.0 o HTML interactivo
-python -m sast scan ./examples -f sarif -o reporte.sarif
-python -m sast scan ./examples -f html -o reporte.html
-
-# Listar las 12 reglas activas
-python -m sast rules
+docker compose up -d --build
 ```
 
-### 3. Levantar Backend API + Frontend Web Studio
+Abre <http://localhost:8080>. `docker compose up` levanta PostgreSQL, Valkey (limitador de
+peticiones), las migraciones, la API con la web y el worker de escaneos.
+
+### Solo la línea de comandos
+
+Requisitos: Python 3.11 o superior.
 
 ```bash
-# Terminal 1: Iniciar API Flask (Puerto 8000)
-python -m api.index
+pip install -e .
+python -m sast scan ruta/al/proyecto                 # resultado en la consola
+python -m sast scan ruta -f sarif -o informe.sarif   # SARIF, JSON o HTML
+python -m sast scan ruta --severity-threshold high   # sale con código 1 si hay altos o críticos
+python -m sast rules                                 # catálogo de reglas
+```
 
-# Terminal 2: Iniciar Frontend React + Vite (Puerto 5173)
+### Desarrollo de la web
+
+Con la pila de Docker en marcha:
+
+```bash
 cd web
-npm install
-npm run dev
+npm ci
+npm run dev   # http://localhost:5173; /api se reenvía a localhost:8080
 ```
 
----
+## Arquitectura
 
-## Ejecución de Pruebas Automatizadas
+```text
+Navegador ──▶ Gunicorn + Flask (MVC) ──▶ PostgreSQL ◀── Worker ──▶ proceso hijo (motor sast/)
+              también sirve la web       cola de escaneos con SKIP LOCKED
+```
+
+- **`sast/`**: el motor. Reglas con contrato (`RuleMeta`), análisis de *taint* con modelos de
+  fuentes y sinks en `sast/taint/models.yaml`, huella estable `sastfp/v1` e informes.
+- **`api/`**: Flask con modelos SQLAlchemy, servicios, controladores finos y serializadores.
+  Incluye la autenticación OIDC (Google por defecto u otro proveedor con `OIDC_ISSUER`), la
+  sesión en el servidor con cookie `__Host-`, CSRF y la autorización por objeto.
+- **`api/worker/`**: reclama escaneos de la cola, analiza en un proceso hijo con tiempo límite y
+  manda un latido. Un *reaper* devuelve a la cola los trabajos de un worker caído.
+- **`web/`**: React + TypeScript con componentes shadcn/ui y los tokens de [`web/DESIGN.md`](web/DESIGN.md).
+
+La seguridad sigue OWASP ASVS 5.0 nivel 2 como objetivo. Algunos ejemplos:
+
+- secretos solo desde el entorno, y la app no arranca si falta uno;
+- login OIDC con PKCE, `state` y `nonce`;
+- límites de ZIP contra bombas y *zip slip*;
+- cuotas por usuario;
+- auditoría a la que solo se puede añadir.
+
+## Reglas
+
+22 reglas: 13 de Python, 8 heurísticas para otros lenguajes y 1 de secretos que se aplica a
+cualquier archivo. Cada una tiene su página en
+[`docs/rules/`](docs/rules/README.md) y casos de prueba anotados en `tests/rules/cases/`, con la
+convención de Semgrep:
+
+```python
+# ruleid: py/sql-injection
+cur.execute("SELECT * FROM users WHERE id = '%s'" % uid)
+
+# ok: py/sql-injection
+cur.execute("SELECT * FROM users WHERE id = ?", (uid,))
+```
 
 ```bash
-python -m pytest -v
+python -m sast test-rules tests/rules/cases
 ```
 
-La suite valida los endpoints REST (`/api/health`, `/api/rules`, `/api/scan`, `/api/github/scan`), las capas MVC, protección contra *Zip Slip*, sanitizadores de flujo de datos y las 12 reglas OWASP Top 10 (`29 passed, 0 warnings`).
+Una regla se escribe como clase de Python (sobre el árbol sintáctico o el *taint*) o en YAML
+(heurísticas, con un subconjunto del formato de Semgrep), siempre con su archivo de casos.
+
+## Pruebas
+
+```bash
+pip install -e ".[dev]"
+python -m pytest                                                 # SQLite en memoria
+TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/sast_test python -m pytest tests/api
+cd web && npm test
+```
+
+El análisis estático externo ([`.github/workflows/analisis-estatico.yml`](.github/workflows/analisis-estatico.yml))
+ejecuta SonarCloud, Semgrep y Snyk en cada push y pull request a `main`, y publica sus informes
+como artefactos. Necesita los secretos `SONAR_TOKEN` y `SNYK_TOKEN`.
+
+La CI ([`.github/workflows/ci-quality.yml`](.github/workflows/ci-quality.yml)) ejecuta en cada
+push:
+
+- las pruebas en SQLite y en PostgreSQL 16;
+- la web: lint, pruebas y build;
+- el autoanálisis con SAST Studio y Bandit;
+- un arranque de la imagen Docker igual al de Render.
+
+## Despliegue
+
+- **Local o en un servidor propio:** `docker compose up`, ver «Puesta en marcha».
+- **Gratis en Render + Neon:** [`render.yaml`](render.yaml) y la guía paso a paso
+  [`docs/despliegue-render.md`](docs/despliegue-render.md). En el plan gratis, web y worker
+  comparten contenedor, y el servicio se duerme tras 15 minutos sin uso.
+
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`docs/benchmark.md`](docs/benchmark.md) | Método y resultados frente a Bandit y Semgrep. |
+| [`docs/despliegue-render.md`](docs/despliegue-render.md) | Despliegue en Render + Neon con login de Google. |
+| [`docs/demo.md`](docs/demo.md) | Guion de demo de 5 minutos. |
+| [`docs/respuesta-revision.md`](docs/respuesta-revision.md) | Respuesta a la revisión técnica: diferenciación, arquitectura, reglas y base de datos. |
+| [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Contrato de la API `/api/v1`. |
+| [`docs/rules/`](docs/rules/README.md) | Una página por regla. |
+| [`docs/ESTADO.md`](docs/ESTADO.md) | Estado de la refactorización por fases y lo pendiente. |
+
+## Licencia
+
+MIT, según `pyproject.toml`.

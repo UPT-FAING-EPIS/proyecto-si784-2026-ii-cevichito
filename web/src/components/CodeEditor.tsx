@@ -1,50 +1,51 @@
-import { useEffect, useRef } from "react";
-import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
-import { dracula } from "@uiw/codemirror-theme-dracula";
-import { useSastStore } from "../store/sast";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { EditorView } from "@codemirror/view";
+import { tags as t } from "@lezer/highlight";
+import CodeMirror from "@uiw/react-codemirror";
 
-export default function CodeEditor() {
-  const value = useSastStore((s) => s.pasteValue);
-  const setValue = useSastStore((s) => s.setPaste);
-  const filename = useSastStore((s) => s.pasteFilename);
+// Tema del editor a partir de los tokens: funciona igual en claro y oscuro.
+const theme = EditorView.theme({
+  "&": { backgroundColor: "var(--surface)", color: "var(--foreground)", fontSize: "13px" },
+  ".cm-content": { fontFamily: "var(--font-mono)", caretColor: "var(--foreground)" },
+  ".cm-gutters": { backgroundColor: "var(--muted)", color: "var(--muted-foreground)", border: "none" },
+  ".cm-activeLine": { backgroundColor: "var(--muted)" },
+  ".cm-activeLineGutter": { backgroundColor: "var(--border)" },
+  "&.cm-focused": { outline: "2px solid var(--ring)", outlineOffset: "-1px" },
+  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": { backgroundColor: "var(--selection)" },
+  ".cm-cursor": { borderLeftColor: "var(--foreground)" },
+});
 
-  const rootRef = useRef<HTMLDivElement | null>(null);
+const highlight = HighlightStyle.define([
+  { tag: [t.keyword, t.controlKeyword, t.operatorKeyword, t.definitionKeyword], color: "var(--code-keyword)" },
+  { tag: [t.string, t.special(t.string)], color: "var(--code-string)" },
+  { tag: [t.number, t.bool, t.null], color: "var(--code-number)" },
+  { tag: [t.comment, t.lineComment], color: "var(--code-comment)", fontStyle: "italic" },
+  { tag: [t.function(t.variableName), t.definition(t.function(t.variableName))], fontWeight: "600" },
+]);
 
-  // Escucha evento custom del store cuando loadDemo() se dispara desde fuera
-  useEffect(() => {
-    const onDemo = () => {
-      try {
-        const raf = () =>
-          rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-        if (typeof window !== "undefined") {
-          window.setTimeout(() => window.requestAnimationFrame(raf), 0);
-        }
-      } catch {}
-    };
-    window.addEventListener("sast:load-demo", onDemo);
-    return () => window.removeEventListener("sast:load-demo", onDemo);
-  }, []);
-
+export function CodeEditor({
+  value,
+  onChange,
+  python: isPython,
+  labelledBy,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  python: boolean;
+  labelledBy: string;
+}) {
   return (
-    <div ref={rootRef} className="h-full w-full">
+    <div className="overflow-hidden rounded border border-input">
       <CodeMirror
         value={value}
-        height="490px"
-        theme={dracula}
-        extensions={[python()]}
-        placeholder={`# Pega tu código fuente aquí y pulsa "Analizar código"\n#\n# Ejemplo rápido:\n# username = input("Usuario: ")\n# query = "SELECT * FROM users WHERE name = '" + username + "'"\n# cursor.execute(query)\n#\n# O pulsa "Cargar demo" en la barra superior para cargar el caso de prueba completo.`}
-        onChange={(v) => setValue(v, filename)}
-        basicSetup={{
-          lineNumbers: true,
-          foldGutter: true,
-          highlightActiveLineGutter: true,
-          highlightActiveLine: true,
-          bracketMatching: true,
-          closeBrackets: true,
-          autocompletion: true,
-        }}
-        className="text-[13px] font-mono leading-relaxed"
+        onChange={onChange}
+        height="360px"
+        theme="none"
+        basicSetup={{ syntaxHighlighting: false, foldGutter: false, highlightActiveLineGutter: true }}
+        extensions={[theme, syntaxHighlighting(highlight), ...(isPython ? [python()] : [])]}
+        aria-labelledby={labelledBy}
+        placeholder="Pega aquí el código que quieres analizar"
       />
     </div>
   );

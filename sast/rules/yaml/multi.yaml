@@ -1,0 +1,206 @@
+# Reglas heurísticas (expresiones regulares por línea) para lenguajes sin AST.
+#
+# Importante: estas reglas NO hacen análisis semántico ni de flujo de datos.
+# Por eso llevan engine: heuristic y confianza LOW o MEDIUM, y la interfaz las
+# marca como "heurística".
+
+rules:
+  - id: multi/xss
+    name: Cross-Site Scripting (heurística)
+    message: "Se inserta HTML sin escapar ({variant}). Si el contenido viene del usuario, puede ejecutar scripts."
+    severity: HIGH
+    confidence: LOW
+    languages: [javascript, typescript, vue, svelte, html, php]
+    engine: heuristic
+    variant: inserción de HTML
+    metadata: { cwe: [CWE-79], owasp: ["A03:2021"], security_severity: 6.1 }
+    docs:
+      explanation: >
+        Asignar a `innerHTML`, usar `document.write`, `dangerouslySetInnerHTML`, `v-html` o imprimir un parámetro
+        en PHP sin escapar convierte texto del usuario en HTML ejecutable en el navegador de otra persona.
+      remediation: >
+        Usa `textContent` para texto plano, deja que React o Vue escapen por defecto, y en PHP aplica
+        `htmlspecialchars($valor, ENT_QUOTES, 'UTF-8')`. Si necesitas HTML, sanéalo con DOMPurify.
+      example_bad: |
+        el.innerHTML = params.get("q");
+      example_good: |
+        el.textContent = params.get("q");
+    regex:
+      - '\b(?:innerHTML|outerHTML)\s*\+?=(?!=)'
+      - '\bdocument\.write(?:ln)?\s*\('
+      - 'dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:'
+      - '\bv-html\s*='
+      - '\b(?:echo|print)\s+\$_(?:GET|POST|REQUEST|COOKIE)\['
+    regex-not:
+      - '(?:innerHTML|outerHTML)\s*=\s*(?:""|''''|``)\s*;?\s*$'
+
+  - id: multi/command-injection
+    name: Inyección de comandos (heurística)
+    message: "Se ejecuta un comando del sistema construido por concatenación o interpolación."
+    severity: CRITICAL
+    confidence: MEDIUM
+    languages: [javascript, typescript, php, java, kotlin, go, ruby, csharp]
+    engine: heuristic
+    metadata: { cwe: [CWE-78], owasp: ["A03:2021"], security_severity: 9.8 }
+    docs:
+      explanation: >
+        El comando se arma pegando texto (con `+`, `.` o `${}`) y se ejecuta con una shell. Con `;` o `&&`
+        un atacante añade sus propios comandos.
+      remediation: >
+        Usa APIs que reciben los argumentos como lista y no pasan por la shell: `execFile`/`spawn` en Node,
+        `ProcessBuilder` en Java, `escapeshellarg()` como mínimo en PHP.
+      example_bad: |
+        child_process.exec("ls " + req.query.dir);
+      example_good: |
+        child_process.execFile("ls", [req.query.dir]);
+    regex:
+      - '\bchild_process\.(?:exec|execSync)\s*\(\s*(?:["''][^"'']*["'']\s*\+|`[^`]*\$\{)'
+      - '\b(?:exec|execSync)\s*\(\s*`[^`]*\$\{'
+      - '\b(?:system|passthru|shell_exec|exec|popen|proc_open)\s*\(\s*(?:["''][^"'']*["'']\s*\.|\$_(?:GET|POST|REQUEST))'
+      - '\bRuntime\.getRuntime\(\)\.exec\s*\([^)]*\+'
+      - '\bexec\.Command\s*\(\s*"(?:sh|bash|cmd)"'
+
+  - id: multi/sql-injection
+    name: Inyección SQL (heurística)
+    message: "La consulta SQL se construye concatenando o interpolando valores."
+    severity: CRITICAL
+    confidence: MEDIUM
+    languages: [javascript, typescript, php, java, kotlin, go, ruby, csharp]
+    engine: heuristic
+    metadata: { cwe: [CWE-89], owasp: ["A03:2021"], security_severity: 9.8 }
+    docs:
+      explanation: >
+        El texto de la consulta incluye valores pegados con `+`, `.` o `${}`. Si alguno viene del usuario,
+        puede alterar la consulta y leer o borrar datos.
+      remediation: >
+        Usa sentencias preparadas con marcadores (`?`, `$1`, `:id`) y pasa los valores aparte:
+        `$pdo->prepare(...)->execute([$id])`, `db.query("... WHERE id = $1", [id])`, `PreparedStatement`.
+      example_bad: |
+        $r = query("SELECT * FROM users WHERE id = " . $id);
+      example_good: |
+        $st = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $st->execute([$id]);
+    regex:
+      - '(?i)\b(?:query|execute|exec|raw|rawQuery|executeQuery|createQuery)\s*\(\s*["''][^"'']*\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER)\b[^"'']*["'']\s*(?:\+|\.)\s*\$?[A-Za-z_]'
+      - '(?i)\b(?:query|execute|raw)\s*\(\s*`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\$\{'
+
+  - id: multi/weak-hash
+    name: Hash criptográfico débil (heurística)
+    message: "Se usa MD5 o SHA-1, algoritmos con colisiones conocidas."
+    severity: MEDIUM
+    confidence: MEDIUM
+    languages: [javascript, typescript, php, java, kotlin, go, csharp]
+    engine: heuristic
+    previous_ids: [WEAK_CRYPTO_WEAK_HASH_MD5_SHA1, WEAK_CRYPTO_WEAK_HASH_CRYPTOJS, WEAK_CRYPTO_WEAK_HASH_JAVA]
+    metadata: { cwe: [CWE-327, CWE-328], owasp: ["A02:2021"], security_severity: 5.9 }
+    docs:
+      explanation: >
+        MD5 y SHA-1 permiten fabricar colisiones. No sirven para firmas, tokens ni integridad, y mucho
+        menos para contraseñas.
+      remediation: >
+        Usa SHA-256 o superior (`crypto.createHash("sha256")`, `MessageDigest.getInstance("SHA-256")`) y,
+        para contraseñas, bcrypt o Argon2 (`password_hash()` en PHP).
+      example_bad: |
+        crypto.createHash("md5").update(data).digest("hex");
+      example_good: |
+        crypto.createHash("sha256").update(data).digest("hex");
+    regex:
+      - '\b(?:createHash|createHmac)\s*\(\s*["''](?:md4|md5|sha1)["'']'
+      - '\bCryptoJS\.(?:MD5|SHA1)\s*\('
+      - '\bMessageDigest\.getInstance\s*\(\s*"(?:MD5|SHA-?1)"'
+      - '(?<![\w$>.])(?:md5|sha1)\s*\(\s*\$'
+
+  - id: multi/path-traversal
+    name: Path traversal (heurística)
+    message: "Una ruta de archivo se construye directamente con datos de la petición."
+    severity: HIGH
+    confidence: MEDIUM
+    languages: [javascript, typescript, php]
+    engine: heuristic
+    metadata: { cwe: [CWE-22], owasp: ["A01:2021"], security_severity: 7.5 }
+    docs:
+      explanation: >
+        Leer o servir un archivo cuyo nombre viene de la petición permite usar `../` para salir de la
+        carpeta prevista y leer archivos del servidor.
+      remediation: >
+        Normaliza con `path.basename()` / `basename()`, únelo a un directorio base y comprueba que la ruta
+        resultante sigue dentro de él antes de abrirla.
+      example_bad: |
+        res.sendFile(req.query.file);
+      example_good: |
+        res.sendFile(path.basename(req.query.file), { root: "/srv/files" });
+    regex:
+      - '\bfs\.(?:readFile|readFileSync|createReadStream|unlink|unlinkSync)\s*\(\s*(?:req\.(?:query|params|body)|path\.join\([^)]*req\.)'
+      - '\bres\.sendFile\s*\(\s*(?:req\.(?:query|params|body)|path\.join\([^)]*req\.)'
+      - '\b(?:include|include_once|require|require_once|file_get_contents|fopen|readfile)\s*\(?\s*\$_(?:GET|POST|REQUEST)'
+
+  - id: multi/ssrf
+    name: SSRF (heurística)
+    message: "Se hace una petición saliente a una URL tomada de la petición del usuario."
+    severity: HIGH
+    confidence: MEDIUM
+    languages: [javascript, typescript, php]
+    engine: heuristic
+    metadata: { cwe: [CWE-918], owasp: ["A10:2021"], security_severity: 8.6 }
+    docs:
+      explanation: >
+        Si el usuario elige la URL a la que llama el servidor, puede apuntar a servicios internos o a los
+        metadatos de la nube.
+      remediation: >
+        Construye la URL en el servidor a partir de un identificador, o valida esquema y host contra una
+        lista blanca antes de llamar.
+      example_bad: |
+        const r = await fetch(req.query.url);
+      example_good: |
+        const r = await fetch(SERVICIOS[req.query.svc]);
+    regex:
+      - '\b(?:fetch|axios(?:\.(?:get|post|put|delete|request))?|got|needle)\s*\(\s*(?:req\.(?:query|body|params)|`[^`]*\$\{req\.)'
+      - '\b(?:file_get_contents|curl_init|fopen)\s*\(\s*\$_(?:GET|POST|REQUEST)'
+
+  - id: multi/insecure-deserialization
+    name: Deserialización insegura (heurística)
+    message: "Se deserializan datos con un mecanismo que puede instanciar objetos arbitrarios."
+    severity: CRITICAL
+    confidence: MEDIUM
+    languages: [php, java, kotlin, csharp, javascript, typescript]
+    engine: heuristic
+    metadata: { cwe: [CWE-502], owasp: ["A08:2021"], security_severity: 9.8 }
+    docs:
+      explanation: >
+        `unserialize()` en PHP, `ObjectInputStream` en Java, `BinaryFormatter` en .NET o `node-serialize`
+        reconstruyen objetos con comportamiento; datos manipulados pueden ejecutar código.
+      remediation: >
+        Intercambia datos en JSON y valídalos contra un esquema. En PHP usa `json_decode`; en Java, filtros
+        de deserialización (`ObjectInputFilter`) o evita la serialización nativa.
+      example_bad: |
+        $obj = unserialize($_COOKIE["data"]);
+      example_good: |
+        $obj = json_decode($_COOKIE["data"], true);
+    regex:
+      - '\bunserialize\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)'
+      - '\bnew\s+ObjectInputStream\s*\('
+      - '\bBinaryFormatter\s*\(\s*\)'
+      - '\brequire\(\s*["'']node-serialize["'']\s*\)'
+
+  - id: multi/dangerous-function
+    name: Ejecución dinámica de código (heurística)
+    message: "Se ejecuta código construido en tiempo de ejecución ({variant})."
+    severity: HIGH
+    confidence: MEDIUM
+    languages: [javascript, typescript, vue, svelte, html, php]
+    engine: heuristic
+    variant: eval
+    metadata: { cwe: [CWE-95], owasp: ["A03:2021"], security_severity: 8.8 }
+    docs:
+      explanation: >
+        `eval()` o `new Function()` convierten texto en código. Si el texto puede venir del usuario, el
+        atacante ejecuta lo que quiera en el navegador o en el servidor.
+      remediation: >
+        Usa `JSON.parse()` para datos y una tabla de funciones permitidas para elegir comportamientos.
+      example_bad: |
+        const r = eval(req.body.expr);
+      example_good: |
+        const datos = JSON.parse(req.body.json);
+    regex:
+      - '(?<![\w.])eval\s*\('
+      - '\bnew\s+Function\s*\('

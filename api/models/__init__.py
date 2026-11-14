@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Modelos de datos y DTOs para la API."""
+"""Modelos (SQLAlchemy) y DTOs de la API."""
 
-from .scan_request import ScanRequest
+from .entities import (
+    AuditLog, AuthSession, Issue, IssueEvent, Occurrence, Project, RuleRecord, Scan, ScanUpload, User,
+)
 
-__all__ = ["ScanRequest"]
+__all__ = [
+    "AuditLog", "AuthSession", "Issue", "IssueEvent", "Occurrence", "Project", "RuleRecord", "Scan",
+    "ScanUpload", "User",
+]

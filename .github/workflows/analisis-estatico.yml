@@ -1,0 +1,140 @@
+name: Análisis estático (SonarCloud, Semgrep y Snyk)
+
+# Tres herramientas externas sobre el mismo código, como control de calidad y de seguridad.
+# Ninguna bloquea la integración: publican sus informes como artefactos (y en GitHub Code
+# scanning si el repositorio es público). La CI del proyecto está en ci-quality.yml.
+#
+# Configuración (Settings → Secrets and variables → Actions):
+#   Secrets:    SONAR_TOKEN (SonarCloud) y SNYK_TOKEN (Snyk). Si falta uno, esa herramienta se
+#               salta con un aviso. NUNCA escribas un token en este archivo.
+#   Variables:  SONAR_ORGANIZATION y SONAR_PROJECT_KEY (si no existen, se usan los valores por
+#               defecto de abajo).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analisis-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'nestor123' }}
+  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'nestor123_sast-studio-cevichito' }}
+
+jobs:
+  sonarcloud:
+    name: SonarCloud (calidad, cobertura y duplicación)
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # SonarCloud usa el historial para atribuir los cambios
+      - name: Aviso si falta el token
+        if: env.SONAR_TOKEN == ''
+        run: echo "::warning::Falta el secreto SONAR_TOKEN; se omite SonarCloud."
+      - uses: actions/setup-python@v5
+        if: env.SONAR_TOKEN != ''
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Pruebas con cobertura (coverage.xml para SonarCloud)
+        if: env.SONAR_TOKEN != ''
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          python -m pytest -q --cov=sast --cov=api --cov-report=xml
+      - name: Análisis SonarCloud
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          args: >
+            -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.host.url=https://sonarcloud.io
+
+  semgrep:
+    name: Semgrep CE (reglas públicas)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar Semgrep
+        run: pip install "semgrep==1.100.0"
+      # samples/ y tests/rules/cases/ son código vulnerable a propósito (ejemplos y casos de prueba).
+      - name: Escanear
+        run: |
+          semgrep scan --config p/default --metrics=off \
+            --exclude samples --exclude tests/rules/cases \
+            --sarif --output semgrep.sarif || true
+          semgrep scan --config p/default --metrics=off \
+            --exclude samples --exclude tests/rules/cases \
+            --json --output semgrep.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semgrep
+          path: semgrep.*
+      - name: Subir a Code scanning (solo repos públicos)
+        if: github.event.repository.visibility == 'public'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  snyk:
+    name: Snyk (dependencias, código e imagen Docker)
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aviso si falta el token
+        if: env.SNYK_TOKEN == ''
+        run: echo "::warning::Falta el secreto SNYK_TOKEN; se omite Snyk."
+      - uses: actions/setup-python@v5
+        if: env.SNYK_TOKEN != ''
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        if: env.SNYK_TOKEN != ''
+        with:
+          node-version: "22"
+      - name: Instalar Snyk CLI y dependencias a analizar
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npm install -g snyk@1
+          pip install -r requirements.lock
+          (cd web && npm ci --no-audit --no-fund)
+      - name: Dependencias de Python
+        if: env.SNYK_TOKEN != ''
+        run: snyk test --file=requirements.lock --package-manager=pip --command=python --json-file-output=snyk-python.json || true
+      - name: Dependencias de la web (npm)
+        if: env.SNYK_TOKEN != ''
+        run: snyk test --file=web/package-lock.json --json-file-output=snyk-web.json || true
+      - name: Snyk Code (análisis estático)
+        if: env.SNYK_TOKEN != ''
+        run: snyk code test --sarif-file-output=snyk-code.sarif || true
+      - name: Imagen Docker
+        if: env.SNYK_TOKEN != ''
+        run: |
+          docker build -t sast-studio:snyk .
+          snyk container test sast-studio:snyk --file=Dockerfile --json-file-output=snyk-container.json || true
+      - uses: actions/upload-artifact@v4
+        if: env.SNYK_TOKEN != ''
+        with:
+          name: snyk
+          path: snyk-*

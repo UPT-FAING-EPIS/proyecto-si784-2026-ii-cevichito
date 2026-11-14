@@ -1,38 +1,52 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Syne:wght@600;700;800&display=swap");
-@import "./studio.css";
+@import "@fontsource-variable/rubik";
+@import "./styles/tokens.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--studio-bg);
-  color: var(--studio-text);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overflow-x: hidden;
-}
-
-@layer utilities {
-  .font-display {
-    font-family: var(--font-display);
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
   }
-  .font-body {
-    font-family: var(--font-body);
+  body {
+    @apply bg-background text-base text-foreground antialiased;
+    caret-color: var(--foreground);
   }
-  .font-mono {
+  ::selection {
+    background: var(--selection);
+    color: var(--foreground);
+  }
+  * {
+    @apply border-border;
+    scrollbar-color: var(--input) transparent;
+    scrollbar-width: thin;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  code,
+  kbd,
+  pre {
     font-family: var(--font-mono);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
   }
 }

@@ -1,0 +1,40 @@
+# Prueba de extremo a extremo del login OIDC sin cuentas reales, en modo producción.
+#
+#   docker compose -f docker-compose.yml -f docker/compose.oidc-test.yml up -d
+#
+# Levanta un proveedor OIDC de pruebas (mock-oauth2-server) en el puerto 9090 y
+# configura la app contra él con ENVIRONMENT=prod y sin acceso de desarrollo.
+# El proveedor comparte la red del contenedor `api` y escucha en el 9090: así el
+# navegador (localhost:9090, publicado por `api`) y la API (localhost:9090 dentro del
+# contenedor) ven exactamente el MISMO issuer, que OIDC exige que coincida.
+# En el formulario del proveedor escribe cualquier usuario y, en "claims", por ejemplo:
+#   {"email": "ana@universidad.test", "email_verified": true, "name": "Ana"}
+# NO usar en un servidor real: el proveedor acepta cualquier usuario.
+
+x-oidc-env: &oidc-env
+  ENVIRONMENT: prod
+  DEV_LOGIN_ENABLED: "false"
+  OIDC_ISSUER: http://localhost:9090/default
+  OIDC_CLIENT_ID: sast-studio
+  OIDC_CLIENT_SECRET: secreto-solo-para-pruebas
+  OIDC_PROVIDER_NAME: la cuenta de prueba
+
+services:
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+    network_mode: "service:api"
+    environment:
+      SERVER_PORT: "9090"
+      JSON_CONFIG: '{"interactiveLogin": true}'
+    depends_on:
+      api:
+        condition: service_started
+    restart: "no"
+
+  api:
+    environment: *oidc-env
+    ports:
+      - "9090:9090"
+
+  worker:
+    environment: *oidc-env

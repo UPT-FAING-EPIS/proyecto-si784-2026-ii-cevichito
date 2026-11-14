@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Controladores de la API."""
+"""Controladores (blueprints finos): validan la entrada, llaman a servicios y serializan con vistas."""
 
-from .base_controller import BaseController
-from .health_controller import HealthController
-from .rules_controller import RulesController
-from .scan_controller import ScanController
+from __future__ import annotations
 
-__all__ = [
-    "BaseController",
-    "HealthController",
-    "RulesController",
-    "ScanController",
-]
+from flask import Flask
+
+
+def register_blueprints(app: Flask) -> None:
+    from . import auth, config, health, issues, legacy, projects, rules, scans
+    from .spa import register_spa
+
+    for module in (health, config, auth, rules, projects, scans, issues, legacy):
+        app.register_blueprint(module.bp)
+    register_spa(app)
