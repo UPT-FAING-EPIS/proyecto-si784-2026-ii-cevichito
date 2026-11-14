@@ -48,14 +48,15 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.lock
-      # relative_files: sin esto coverage.xml usa rutas como "__init__.py" que SonarCloud no puede
-      # resolver ("ambiguity, the file exists in several sources") y no carga la cobertura.
+      # Raíz como única fuente + include: así coverage.xml da rutas como "api/__init__.py". Con
+      # source = sast,api salían relativas a cada paquete ("__init__.py") y SonarCloud no podía
+      # resolverlas ("ambiguity, the file exists in several sources").
       - name: Pruebas con cobertura (coverage.xml para SonarCloud)
         if: env.SONAR_TOKEN != ''
         run: |
           pip install -r requirements.lock
           pip install -e . --no-deps
-          printf '[run]\nrelative_files = True\nsource = sast,api\n' > .coveragerc
+          printf '[run]\nrelative_files = True\nsource = .\ninclude =\n    sast/*\n    api/*\n' > .coveragerc
           python -m pytest -q --cov --cov-config=.coveragerc --cov-report=xml
       - name: Análisis SonarCloud
         if: env.SONAR_TOKEN != ''
