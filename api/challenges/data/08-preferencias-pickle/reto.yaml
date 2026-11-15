@@ -1,0 +1,17 @@
+title: Preferencias guardadas con pickle
+order: 8
+level: intermedio
+rules:
+- py/insecure-deserialization
+cwe: CWE-502
+filename: app.py
+keep:
+- preferencias
+summary: La aplicación reconstruye con pickle una cookie que controla el usuario.
+statement: Las preferencias del usuario viajan en una cookie serializada con `pickle`. Como el usuario controla
+  la cookie, puede fabricar una que ejecute código al deserializarse. Corrige `preferencias` para leer la cookie
+  con un formato que solo contenga datos.
+hints:
+- '`pickle.loads` puede ejecutar código; nunca debe recibir datos de fuera.'
+- 'JSON solo representa datos: números, textos, listas y diccionarios.'
+- Cambia `pickle.loads(...)` por `json.loads(...)` y comprueba que el resultado sea un diccionario.

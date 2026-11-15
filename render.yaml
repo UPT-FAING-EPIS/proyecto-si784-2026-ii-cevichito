@@ -48,14 +48,15 @@ services:
         value: "2"
       - key: DB_MAX_OVERFLOW
         value: "1"
-      # Límites pensados para 512 MB de RAM (el ZIP se descomprime en memoria).
+      # Límites medidos con 512 MB y 0,1 CPU (docs/despliegue-render.md): con estos valores,
+      # django/django (1143 archivos) y sqlalchemy dejan un pico de ~355 MB.
       - key: MAX_UPLOAD_MB
-        value: "10"
+        value: "25"
       - key: GITHUB_MAX_MB
-        value: "20"
+        value: "40"
       - key: MAX_TOTAL_UNCOMPRESSED_MB
-        value: "60"
-      - key: MAX_ZIP_ENTRIES
+        value: "150"
+      - key: MAX_ZIP_ENTRIES          # archivos de código analizables (no cuenta imágenes ni docs)
         value: "5000"
       - key: DEV_LOGIN_ENABLED
         value: "false"

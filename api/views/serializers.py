@@ -73,7 +73,8 @@ def project(p: Project, last_scan: Scan | None = None, open_counts: dict[str, in
     return out
 
 
-def scan(s: Scan) -> dict[str, Any]:
+def scan(s: Scan, queue: dict | None = None) -> dict[str, Any]:
+    """`queue` (posición y estimación) solo se calcula al pedir un escaneo concreto."""
     return {
         "id": str(s.id), "project_id": str(s.project_id), "status": s.status, "source": s.source,
         "source_ref": s.source_ref, "category": s.category, "commit_sha": s.commit_sha,
@@ -83,6 +84,7 @@ def scan(s: Scan) -> dict[str, Any]:
         "cancel_requested": s.cancel_requested, "files_scanned": s.files_scanned, "loc_total": s.loc_total,
         "engine_version": s.engine_version, "baseline_scan_id": str(s.baseline_scan_id) if s.baseline_scan_id else None,
         "rules_requested": s.rules_requested,
+        "partial": bool(s.partial), "result_reused": bool(s.result_reused), "queue": queue,
     }
 
 

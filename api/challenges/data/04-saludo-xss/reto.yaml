@@ -1,0 +1,17 @@
+title: Saludo con Cross-Site Scripting
+order: 4
+level: básico
+rules:
+- py/xss
+cwe: CWE-79
+filename: app.py
+keep:
+- saludo
+summary: La página de bienvenida devuelve HTML con el nombre del usuario sin escaparlo.
+statement: La ruta `/saludo?nombre=Ana` responde `<h1>Hola, Ana</h1>`. Si el nombre es `<script>robar()</script>`,
+  el navegador de la víctima ejecuta ese script. Corrige `saludo` para que el nombre se muestre como texto y nunca
+  como HTML.
+hints:
+- El HTML se arma concatenando `nombre` directamente.
+- Escapar convierte `<` en `&lt;`, de modo que el navegador lo muestra en lugar de interpretarlo.
+- Usa `escape(nombre)` de `markupsafe` antes de insertarlo en el HTML.

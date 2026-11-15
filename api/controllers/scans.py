@@ -13,6 +13,7 @@ from ..models.entities import CHANGES, TRIAGES, Issue, Occurrence
 from ..security.session import login_required
 from ..services import access, metrics_service, report_service, scan_jobs
 from ..views import serializers
+from ..worker import queue
 from ._common import page_params, paginated
 
 bp = Blueprint("scans", __name__, url_prefix="/api/v1/scans")
@@ -21,7 +22,8 @@ bp = Blueprint("scans", __name__, url_prefix="/api/v1/scans")
 @bp.get("/<scan_id>")
 @login_required
 def get_scan(scan_id: str):
-    return jsonify(serializers.scan(access.scan_of(g.user, scan_id)))
+    scan = access.scan_of(g.user, scan_id)
+    return jsonify(serializers.scan(scan, queue=queue.position(scan)))
 
 
 @bp.post("/<scan_id>/cancel")

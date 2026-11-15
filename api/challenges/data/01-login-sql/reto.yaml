@@ -1,0 +1,17 @@
+title: Inicio de sesión con inyección SQL
+order: 1
+level: básico
+rules:
+- py/sql-injection
+cwe: CWE-89
+filename: app.py
+keep:
+- login
+summary: El formulario de acceso arma la consulta SQL pegando lo que escribe el usuario.
+statement: La tienda valida el inicio de sesión construyendo la consulta SQL con los datos del formulario. Un atacante
+  que escriba `' OR '1'='1` en el usuario entra sin conocer la clave. Corrige `login` para que los datos del usuario
+  nunca formen parte del texto de la consulta.
+hints:
+- Busca la línea donde se concatena `usuario` dentro del texto SQL.
+- sqlite3 acepta marcadores `?` en la consulta y los valores en una tupla aparte.
+- La forma segura es `db.execute("... WHERE nombre = ? AND clave = ?", (usuario, clave))`.

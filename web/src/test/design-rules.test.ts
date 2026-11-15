@@ -126,9 +126,9 @@ describe("patrones prohibidos en el código de la interfaz (DESIGN.md §9)", () 
     expect(hits).toEqual([]);
   });
 
-  it("solo la preferencia de tema usa localStorage; nada de sesión ni historial", () => {
+  it("solo el tema y el borrador de los retos usan localStorage; nada de sesión ni historial", () => {
     const hits = FILES.filter((f) => /localStorage|sessionStorage/.test(f.text)).map((f) => f.path);
-    expect(hits).toEqual(["lib/theme.ts"]);
+    expect(hits.sort()).toEqual(["lib/drafts.ts", "lib/theme.ts"]);
     expect(FILES.some((f) => /sast\.history|jwt|Bearer/i.test(f.text))).toBe(false);
   });
 

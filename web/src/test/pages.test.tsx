@@ -197,6 +197,22 @@ describe("resultados del escaneo", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cancelar escaneo" }));
     await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path.endsWith("/cancel"))).toBe(true));
   });
+
+  it("un escaneo en cola dice cuántos hay delante y cuánto falta", async () => {
+    mockApi({ ...routes, "GET /api/v1/scans/s1": { ...SCAN, status: "queued", queue: { ahead: 3, eta_s: 240 } } });
+    renderApp("/escaneos/s1");
+    expect(await screen.findByText("Hay 3 escaneos delante; unos 4 min de espera.")).toBeInTheDocument();
+  });
+
+  it("avisa de un resultado parcial y de uno reutilizado", async () => {
+    mockApi({
+      ...routes,
+      "GET /api/v1/scans/s1": { ...SCAN, partial: true, result_reused: true, progress: { files_done: 40, files_total: 120 } },
+    });
+    renderApp("/escaneos/s1");
+    expect(await screen.findByText(/se analizaron 40 de 120 archivos/)).toBeInTheDocument();
+    expect(screen.getByText(/Resultado reutilizado/)).toBeInTheDocument();
+  });
 });
 
 describe("revisión de un issue", () => {

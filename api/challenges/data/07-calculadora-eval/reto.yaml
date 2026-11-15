@@ -1,0 +1,16 @@
+title: Calculadora con eval
+order: 7
+level: intermedio
+rules:
+- py/dangerous-function
+cwe: CWE-95
+filename: app.py
+keep:
+- calcular
+summary: La calculadora web evalúa como código Python la expresión que escribe el usuario.
+statement: La ruta `/calcular?expr=2*3` responde `6` usando `eval`. Con `expr=__import__('os').system('rm -rf /')`
+  ejecuta cualquier orden en el servidor. Corrige `calcular` para que solo acepte números y las cuatro operaciones.
+hints:
+- '`eval` ejecuta cualquier código Python, no solo aritmética.'
+- 'El módulo `ast` analiza la expresión sin ejecutarla: `ast.parse(expr, mode="eval")`.'
+- Recorre el árbol y acepta solo números (`ast.Constant`) y operaciones `+ - * /` (`ast.BinOp`).

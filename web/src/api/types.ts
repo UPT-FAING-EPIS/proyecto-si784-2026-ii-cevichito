@@ -94,6 +94,9 @@ export interface Scan {
   engine_version: string | null;
   baseline_scan_id: string | null;
   rules_requested: string[] | null;
+  partial?: boolean;
+  result_reused?: boolean;
+  queue?: { ahead: number; eta_s: number } | null;
 }
 
 export interface TraceStep {
@@ -189,4 +192,40 @@ export interface Metrics {
   density_per_kloc: number | null;
   open_issues: number;
   accepted_issues: number;
+}
+
+// --- Retos de corrección ---------------------------------------------------------------------------
+
+export type ChallengeProgress = "sin_empezar" | "en_curso" | "superado";
+export type AttemptState = "sin_empezar" | "analizando" | "error" | "sigue" | "silenciado" | "nuevo_fallo" | "superado";
+
+export interface ChallengeSummary {
+  id: string;
+  order: number;
+  title: string;
+  level: "básico" | "intermedio" | "avanzado";
+  cwe: string;
+  rules: string[];
+  summary: string;
+  state: ChallengeProgress;
+}
+
+export interface ChallengeAttempt {
+  state: AttemptState;
+  scan_id: string | null;
+  submissions: number;
+  solved_at: string | null;
+  remaining: Finding[];
+  silenced: Finding[];
+  new: Finding[];
+}
+
+export interface ChallengeDetail extends ChallengeSummary {
+  statement: string;
+  hints: string[];
+  filename: string;
+  starter: string;
+  keep: string[];
+  rule_details: Rule[];
+  attempt: ChallengeAttempt;
 }

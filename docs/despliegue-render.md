@@ -25,8 +25,28 @@ el 14 de noviembre de 2026). Si una pantalla ha cambiado, el nombre del botón p
 | Render Key Value free | Solo en memoria, se pierde al reiniciar; uno por workspace [R1] | Solo guarda los contadores del limitador de peticiones. |
 | Neon free | 1 GB por proyecto; 100 CU-hora/mes; se suspende tras **5 min** sin uso (no se puede desactivar) [N1] | La primera consulta tras suspenderse tarda un poco más. |
 
-Límites de escaneo en Render (en `render.yaml`, más bajos que en local por la RAM): ZIP de
-10 MB, repos de GitHub de 20 MB, 60 MB descomprimidos y 5000 archivos como máximo.
+Límites de escaneo en Render (en `render.yaml`), medidos con 512 MB y 0,1 CPU:
+
+| Límite | Valor | Notas |
+|---|---|---|
+| ZIP subido | 25 MB | |
+| Repositorio de GitHub | 40 MB descargados | |
+| Total descomprimido | 150 MB | |
+| Archivos de código | 5000 | Solo cuenta el código analizable: imágenes, documentación, pruebas, dependencias y minificados no cuentan y se descartan al descomprimir. |
+| Tiempo de análisis | 300 s | Si se agota, el escaneo termina con un **resultado parcial** («se analizaron X de Y archivos»). |
+
+Medición (contenedor con `--memory=512m --cpus=0.1`, igual que Render free):
+
+| Repositorio | Archivos analizados | Tiempo | Pico de RAM |
+|---|---:|---:|---:|
+| En reposo | — | — | 218 MB |
+| sqlalchemy/sqlalchemy | 344 | 125 s | 350 MB |
+| django/django | 1143 | 107 s | 353 MB |
+| Mismo commit de sqlalchemy, otro usuario | 344 (caché) | 9 s | 353 MB |
+
+Con muchos usuarios a la vez, la cola atiende primero el código pegado y los ZIP pequeños, da
+turnos por usuario y muestra cuántos escaneos hay delante. Si varios escanean el mismo commit, el
+análisis se hace una sola vez y el resto reutiliza el resultado.
 
 ---
 
@@ -226,7 +246,7 @@ pg_restore --no-owner --dbname "<cadena de la base destino>" sast-AAAA-MM-DD.dum
 | La web tarda 1–2 min en abrir | Estaba dormida: es normal en el plan gratis [R1]. |
 | Un escaneo se queda «En curso» | Render reinició el contenedor: a los 2 min vuelve a la cola solo. |
 | Un escaneo de GitHub falla con «GitHub limitó las descargas» | Con versiones anteriores al arreglo, la app usaba la API de GitHub sin autenticar: 60 descargas por hora y por IP, y en Render esa IP se comparte con otros servicios. Ahora descarga como el botón «Download ZIP», sin gastar esa cuota. Si aun así ocurre, añade `GITHUB_TOKEN` (paso 3.4). |
-| Un repo grande falla por tamaño | Supera los límites de `render.yaml` (20 MB / 5000 archivos): es intencionado por la RAM de 512 MB. |
+| Un repo grande falla por tamaño | Supera los límites de `render.yaml` (40 MB descargados, 150 MB descomprimidos o 5000 archivos de código): están medidos para los 512 MB de RAM. Si se agota el tiempo no falla: queda como resultado parcial. |
 
 ---
 

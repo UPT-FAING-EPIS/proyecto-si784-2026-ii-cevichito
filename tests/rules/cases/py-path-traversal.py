@@ -1,5 +1,5 @@
 import os
-from flask import request, send_file
+from flask import request, send_file, send_from_directory
 
 
 def descargar():
@@ -13,3 +13,10 @@ def descargar_seguro():
     name = os.path.basename(request.args.get("f"))
     # ok: py/path-traversal
     return send_file(os.path.join("/srv/files", name))
+
+
+def descargar_con_flask():
+    name = request.args.get("f")
+    # send_from_directory aplica safe_join: rechaza nombres que salgan del directorio.
+    # ok: py/path-traversal
+    return send_from_directory("/srv/files", name)

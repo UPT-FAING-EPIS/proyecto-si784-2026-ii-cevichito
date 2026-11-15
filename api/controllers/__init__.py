@@ -7,9 +7,9 @@ from flask import Flask
 
 
 def register_blueprints(app: Flask) -> None:
-    from . import auth, config, health, issues, legacy, projects, rules, scans
+    from . import auth, challenges, config, health, issues, legacy, projects, rules, scans
     from .spa import register_spa
 
-    for module in (health, config, auth, rules, projects, scans, issues, legacy):
+    for module in (health, config, auth, rules, projects, scans, issues, challenges, legacy):
         app.register_blueprint(module.bp)
     register_spa(app)

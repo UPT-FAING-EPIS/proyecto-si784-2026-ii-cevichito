@@ -116,6 +116,14 @@ components:
         queued_at: { type: string, format: date-time }
         started_at: { type: [string, "null"], format: date-time }
         finished_at: { type: [string, "null"], format: date-time }
+        partial: { type: boolean, description: "Se agotó el tiempo y solo se analizó una parte (progress dice cuánto)" }
+        result_reused: { type: boolean, description: "Resultado reutilizado de un análisis de contenido idéntico" }
+        queue:
+          type: [object, "null"]
+          description: "Solo en GET /scans/{id} mientras está en cola"
+          properties:
+            ahead: { type: integer, description: "Escaneos que se atenderán antes (incluido el que está en curso)" }
+            eta_s: { type: integer, description: "Estimación de espera en segundos (mediana de escaneos recientes)" }
     Occurrence:
       type: object
       properties:
@@ -148,6 +156,28 @@ components:
         line: { type: integer }
         first_seen_at: { type: string, format: date-time }
         fixed_at: { type: [string, "null"], format: date-time }
+    Challenge:
+      type: object
+      properties:
+        id: { type: string }
+        order: { type: integer }
+        title: { type: string }
+        level: { type: string, enum: [básico, intermedio, avanzado] }
+        cwe: { type: string }
+        rules: { type: array, items: { type: string } }
+        summary: { type: string }
+        state: { type: string, enum: [sin_empezar, en_curso, superado] }
+    ChallengeAttempt:
+      type: object
+      description: Veredicto del último envío comparado con el código de partida.
+      properties:
+        state: { type: string, enum: [sin_empezar, analizando, error, sigue, silenciado, nuevo_fallo, superado] }
+        scan_id: { type: string, nullable: true }
+        submissions: { type: integer }
+        solved_at: { type: string, format: date-time, nullable: true }
+        remaining: { type: array, items: { $ref: "#/components/schemas/Occurrence" } }
+        silenced: { type: array, items: { $ref: "#/components/schemas/Occurrence" } }
+        new: { type: array, items: { $ref: "#/components/schemas/Occurrence" } }
     Page:
       type: object
       properties:
@@ -234,6 +264,28 @@ paths:
       summary: Una regla
       parameters: [{ name: rule_id, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Rule" } } } }, "404": { $ref: "#/components/responses/Error" } }
+
+  /api/v1/challenges:
+    get:
+      summary: Retos de corrección con el estado del usuario
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Challenge" } } } } } }
+  /api/v1/challenges/{challenge_id}:
+    parameters: [{ name: challenge_id, in: path, required: true, schema: { type: string } }]
+    get:
+      summary: Enunciado, pistas, código de partida y veredicto del intento (nunca la solución)
+      responses: { "200": { description: OK, content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/Challenge" }, { type: object, properties: { statement: { type: string }, hints: { type: array, items: { type: string } }, filename: { type: string }, starter: { type: string }, keep: { type: array, items: { type: string } }, rule_details: { type: array, items: { $ref: "#/components/schemas/Rule" } }, attempt: { $ref: "#/components/schemas/ChallengeAttempt" } } }] } } } }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/challenges/{challenge_id}/attempt:
+    parameters: [{ name: challenge_id, in: path, required: true, schema: { type: string } }]
+    get:
+      summary: Veredicto del último envío
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ChallengeAttempt" } } } }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/challenges/{challenge_id}/submissions:
+    parameters: [{ name: challenge_id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Envía el código corregido; el primer envío encola también el código de partida como base
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
+      responses: { "202": { description: Encolado, content: { application/json: { schema: { type: object, properties: { scan_id: { type: string }, status: { type: string } } } } } }, "413": { $ref: "#/components/responses/Error" }, "422": { $ref: "#/components/responses/Error" }, "429": { $ref: "#/components/responses/Error" } }
 
   /api/v1/projects:
     get:

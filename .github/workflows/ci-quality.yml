@@ -121,8 +121,8 @@ jobs:
           path: |
             sarif/*.sarif
             bandit.sarif
-      # Code scanning solo está disponible gratis en repos públicos. Una subida por archivo:
-      # GitHub no acepta varios SARIF con la misma categoría.
+      # Code scanning solo está disponible gratis en repos públicos.
+      # Una categoría por archivo: GitHub rechaza varios runs SARIF con la misma categoría.
       - name: Subir SARIF de la API a Code scanning
         if: github.event.repository.visibility == 'public'
         uses: github/codeql-action/upload-sarif@v4

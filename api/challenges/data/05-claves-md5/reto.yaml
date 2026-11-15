@@ -1,0 +1,19 @@
+title: Contraseñas guardadas con MD5
+order: 5
+level: básico
+rules:
+- py/insecure-password-hash
+- py/weak-hash
+cwe: CWE-916
+filename: cuentas.py
+keep:
+- registrar
+- verificar
+summary: El registro guarda la huella MD5 de cada contraseña, que se rompe en segundos.
+statement: El módulo de cuentas guarda `md5(clave)` para cada usuario. MD5 es tan rápido que, si se filtra la base
+  de datos, un atacante prueba miles de millones de claves por segundo. Corrige `registrar` y `verificar` para usar
+  un algoritmo lento y con sal pensado para contraseñas.
+hints:
+- MD5 y SHA-1 sirven para comprobar archivos, no para contraseñas.
+- Werkzeug, que viene con Flask, trae `generate_password_hash` y `check_password_hash`.
+- '`generate_password_hash` añade la sal y elige un algoritmo lento por ti.'

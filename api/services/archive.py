@@ -3,8 +3,11 @@
 Defensas (OWASP File Upload Cheat Sheet):
 - Se cuentan los bytes **realmente leídos** con `zf.open()` en bloques de
   64 KiB; los tamaños de las cabeceras del ZIP pueden estar falsificados.
-- Límites: número de entradas, tamaño por archivo (los mayores se omiten),
-  total descomprimido y razón de compresión por entrada.
+- Límites: archivos de código (los únicos que cuentan para `max_entries`), un tope mucho
+  mayor de entradas en total (imágenes, documentación…), tamaño por archivo (los mayores se
+  omiten), total descomprimido y razón de compresión por entrada.
+- Se descartan al descomprimir dependencias, pruebas y código minificado: no se analizarían,
+  y así no ocupan memoria durante el escaneo.
 - Se rechazan rutas absolutas, `..`, unidades de Windows y symlinks.
 - Solo se aceptan extensiones de código (lista blanca).
 """
@@ -18,7 +21,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 from sast.engine.languages import detect_language
-from sast.engine.runner import DEFAULT_EXCLUDED_DIRS, DEFAULT_EXCLUDED_FILES
+from sast.engine.runner import is_test_path, is_third_party
 
 CHUNK = 64 * 1024
 
@@ -33,9 +36,12 @@ class ArchiveError(Exception):
         self.status = status
 
 
+ENTRIES_FACTOR = 20     # tope de entradas totales = archivos de código permitidos × 20
+
+
 @dataclass(frozen=True)
 class Limits:
-    max_entries: int = 10_000
+    max_entries: int = 10_000           # archivos de código analizables
     max_entry_bytes: int = 10 * 1024 * 1024
     max_total_bytes: int = 200 * 1024 * 1024
     max_ratio: int = 100
@@ -75,8 +81,9 @@ def read_zip(data: bytes, limits: Limits = Limits(), strip_root: bool = False) -
 
     with zf:
         infos = zf.infolist()
-        if len(infos) > limits.max_entries:
-            raise ArchiveError("too_many_entries", f"El ZIP tiene más de {limits.max_entries} entradas.", 413)
+        if len(infos) > limits.max_entries * ENTRIES_FACTOR:
+            raise ArchiveError("too_many_entries",
+                               f"El ZIP tiene más de {limits.max_entries * ENTRIES_FACTOR} entradas.", 413)
         out = ArchiveContents()
         total = 0
         names = [i.filename for i in infos]
@@ -94,11 +101,11 @@ def read_zip(data: bytes, limits: Limits = Limits(), strip_root: bool = False) -
                 raise ArchiveError("symlink", "El ZIP contiene enlaces simbólicos.", 422)
             if out.root_prefix and name.startswith(out.root_prefix):
                 name = name[len(out.root_prefix):]
-            parts = name.split("/")
-            if any(p in DEFAULT_EXCLUDED_DIRS for p in parts[:-1]) or parts[-1] in DEFAULT_EXCLUDED_FILES:
+            if not detect_language(name) or is_third_party(name) or is_test_path(name):
                 continue
-            if not detect_language(name):
-                continue
+            if len(out.files) >= limits.max_entries:
+                raise ArchiveError("too_many_files",
+                                   f"El código tiene más de {limits.max_entries} archivos analizables.", 413)
             buf = bytearray()
             too_big = False
             with zf.open(info) as fh:
@@ -118,5 +125,9 @@ def read_zip(data: bytes, limits: Limits = Limits(), strip_root: bool = False) -
             if too_big:
                 out.skipped.append({"path": name, "reason": "archivo demasiado grande"})
                 continue
-            out.files.append((name, bytes(buf).decode("utf-8", errors="replace")))
+            source = bytes(buf).decode("utf-8", errors="replace")
+            if is_third_party(name, source):     # minificado aunque no lo diga el nombre
+                out.skipped.append({"path": name, "reason": "código minificado"})
+                continue
+            out.files.append((name, source))
         return out

@@ -1,0 +1,17 @@
+title: Token de la pasarela escrito en el código
+order: 6
+level: básico
+rules:
+- generic/hardcoded-secret
+cwe: CWE-798
+filename: pagos.py
+keep:
+- cobrar
+summary: El token de la pasarela de pagos está escrito en el código fuente.
+statement: El módulo de pagos lleva el token de la pasarela como una constante. Cualquiera con acceso al repositorio,
+  o a una copia antigua, puede cobrar en nombre de la tienda. Corrige el módulo para que el token se lea de la configuración
+  del servidor y no esté en el código.
+hints:
+- Un secreto en el código queda para siempre en el historial de git.
+- Las variables de entorno son la forma habitual de pasar secretos a una aplicación.
+- Lee el token con `os.environ["PAGOS_TOKEN"]` dentro de `cobrar`.

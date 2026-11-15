@@ -27,6 +27,14 @@
 120 s con un pico de 387 MB. Si el worker muere, el contenedor sale con código 1; con SIGTERM,
 sale limpio. Falta: crear las cuentas (Neon, Google, Render) y el primer despliegue real.
 
+## Cola, caché y límites (2026-11-14)
+Cola con prioridad (código pegado y ZIP pequeños primero), turnos por usuario y envejecimiento
+a los 5 min; posición y estimación en la web. Caché de resultados por contenido (TTL 7 días):
+otro usuario escaneando el mismo commit tardó 9 s en vez de ~2 min. Resultado parcial al
+agotar el tiempo. El límite de archivos cuenta solo código; pruebas y minificados se descartan
+al descomprimir. Pico de RAM medido como Render: 350–353 MB con sqlalchemy y django, lo que
+permitió subir los límites (ZIP 25 MB, GitHub 40 MB, 150 MB descomprimidos).
+
 ## Para retomar
 1. Login con Google de verdad: falta un GOOGLE_CLIENT_ID/SECRET real (Google Cloud Console).
 2. Arreglar las tres debilidades del benchmark (taint de diccionarios, `sh -c` en listas, XSS por valor de retorno) y volver a medir con `sast bench`.

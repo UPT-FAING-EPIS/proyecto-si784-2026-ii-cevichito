@@ -86,8 +86,8 @@ sinks:
       - { call: "shutil.copy", arg: 0 }
       - { call: "flask.send_file", arg: 0 }
       - { call: "send_file", arg: 0 }
-      - { call: "flask.send_from_directory", arg: 1 }
-      - { call: "send_from_directory", arg: 1 }
+      # send_from_directory no es sumidero: Flask une la ruta con safe_join y rechaza cualquier nombre
+      # que salga del directorio (es la corrección que recomienda la propia regla).
   xss:
     description: "Respuesta HTML"
     calls:

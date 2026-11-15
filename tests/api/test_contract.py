@@ -328,6 +328,10 @@ def test_every_api_route_is_covered_by_bola_or_public(app):
     public = {"/api/v1/auth/login", "/api/v1/auth/callback", "/api/v1/auth/dev-login", "/api/v1/auth/logout",
               "/api/v1/auth/me", "/api/v1/config", "/api/v1/rules", "/api/v1/rules/<path:rule_id>",
               "/api/v1/projects",
+              # Retos: el catálogo es común y el intento se busca por el usuario de la sesión, nunca por un ID
+              # ajeno (lo prueba test_challenges.py::test_attempts_are_private).
+              "/api/v1/challenges", "/api/v1/challenges/<challenge_id>", "/api/v1/challenges/<challenge_id>/attempt",
+              "/api/v1/challenges/<challenge_id>/submissions",
               "/api/<path:rest>"}
     covered = {u.replace("{pid}", "<project_id>").replace("{sid}", "<scan_id>").replace("{iid}", "<issue_id>")
                for _, u, _ in BOLA_CALLS}

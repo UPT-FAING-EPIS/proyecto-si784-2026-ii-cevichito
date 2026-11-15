@@ -1,0 +1,17 @@
+title: Descarga de archivos con path traversal
+order: 3
+level: intermedio
+rules:
+- py/path-traversal
+cwe: CWE-22
+filename: app.py
+keep:
+- descargar
+summary: La ruta de descarga une el nombre que pide el usuario a la carpeta de entregas sin comprobarlo.
+statement: Los estudiantes descargan sus entregas con `/descargar?archivo=tarea1.pdf`. Con `archivo=../../etc/passwd`
+  se sale de la carpeta y descarga cualquier archivo del servidor. Corrige `descargar` para que solo pueda servir
+  archivos dentro de `BASE`.
+hints:
+- '`os.path.join` no impide que el nombre contenga `..`.'
+- 'Flask tiene una función pensada para esto: `send_from_directory(carpeta, nombre)`.'
+- '`send_from_directory` rechaza cualquier nombre que salga de la carpeta indicada.'

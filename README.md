@@ -125,6 +125,14 @@ Navegador ──▶ Gunicorn + Flask (MVC) ──▶ PostgreSQL ◀── Worker
   sesión en el servidor con cookie `__Host-`, CSRF y la autorización por objeto.
 - **`api/worker/`**: reclama escaneos de la cola, analiza en un proceso hijo con tiempo límite y
   manda un latido. Un *reaper* devuelve a la cola los trabajos de un worker caído.
+  - **Orden de la cola:** primero el código pegado y los ZIP pequeños; entre iguales, turno
+    para el usuario al que hace más tiempo que no se atiende; un escaneo que lleva más de
+    5 minutos esperando sube de prioridad. La web muestra cuántos hay delante y una estimación.
+  - **Caché por contenido:** si llega exactamente el mismo código (mismas reglas y versión del
+    motor), se reutiliza el resultado en vez de volver a analizarlo. Cada escaneo conserva su
+    propio historial. Útil cuando un curso entero escanea el mismo repositorio.
+  - **Resultado parcial:** si se agota el tiempo, se guarda lo analizado y se indica cuántos
+    archivos faltaron, en vez de perderlo todo.
 - **`web/`**: React + TypeScript con componentes shadcn/ui y los tokens de [`web/DESIGN.md`](web/DESIGN.md).
 
 La seguridad sigue OWASP ASVS 5.0 nivel 2 como objetivo. Algunos ejemplos:
@@ -165,10 +173,6 @@ python -m pytest                                                 # SQLite en mem
 TEST_DATABASE_URL=postgresql://usuario:clave@localhost:5432/sast_test python -m pytest tests/api
 cd web && npm test
 ```
-
-El análisis estático externo ([`.github/workflows/analisis-estatico.yml`](.github/workflows/analisis-estatico.yml))
-ejecuta SonarCloud, Semgrep y Snyk en cada push y pull request a `main`, y publica sus informes
-como artefactos. Necesita los secretos `SONAR_TOKEN` y `SNYK_TOKEN`.
 
 La CI ([`.github/workflows/ci-quality.yml`](.github/workflows/ci-quality.yml)) ejecuta en cada
 push:

@@ -1,0 +1,17 @@
+title: Ping con inyección de comandos
+order: 2
+level: intermedio
+rules:
+- py/command-injection
+cwe: CWE-78
+filename: app.py
+keep:
+- ping
+summary: La herramienta de diagnóstico ejecuta un comando del sistema con el texto que envía el usuario.
+statement: La ruta `/ping` comprueba si un servidor responde ejecutando `ping` en una shell. Si el usuario envía
+  `8.8.8.8; cat /etc/passwd`, la shell ejecuta también el segundo comando. Corrige `ping` para que el dato del usuario
+  nunca pase por una shell.
+hints:
+- El problema es `shell=True` junto con un texto armado con el dato del usuario.
+- 'subprocess acepta una lista de argumentos: así cada valor es un argumento, no un trozo de comando.'
+- Además, valida que `host` solo tenga letras, números, puntos y guiones antes de usarlo.

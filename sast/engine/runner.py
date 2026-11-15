@@ -59,6 +59,16 @@ def is_third_party(path: str, source: str | None = None) -> bool:
 TEST_DIRS = frozenset({"tests", "test", "__tests__", "spec", "specs"})
 TEST_GLOBS = ("test_*.py", "*_test.py", "tests/*", "*/tests/*", "*.spec.ts", "*.test.ts", "*.spec.js", "*.test.js")
 
+
+
+def is_test_path(rel: str) -> bool:
+    """Archivo de pruebas por su carpeta (tests/, spec/…) o por su nombre (test_*.py, *.spec.ts…)."""
+    if TEST_DIRS.intersection(rel.split("/")[:-1]):
+        return True
+    name = rel.rsplit("/", 1)[-1]
+    return any(fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(name, g) for g in TEST_GLOBS)
+
+
 ProgressFn = Callable[[int, int], None]
 CancelFn = Callable[[], bool]
 
@@ -92,6 +102,17 @@ class ScanReport:
     finished_at: str | None = None
     duration_ms: int = 0
     sources: dict[str, str] = field(default_factory=dict)
+    partial: bool = False          # se alcanzó el tiempo límite: solo están los archivos analizados
+    files_total: int = 0           # archivos que había que analizar (tras las exclusiones)
+
+    def prune_sources(self) -> None:
+        """Deja el código solo de los archivos con hallazgos; del resto, solo la ruta.
+
+        La ruta basta para saber qué archivos se analizaron (y así marcar issues como
+        corregidos); el código solo hace falta para las huellas y el contexto de cada hallazgo.
+        """
+        with_findings = {f.path for f in self.findings}
+        self.sources = {p: (s if p in with_findings else "") for p, s in self.sources.items()}
 
     @property
     def active_findings(self) -> list[Finding]:
@@ -120,6 +141,8 @@ class ScanReport:
             "findings": [f.to_dict() for f in self.findings],
             "rule_errors": [e.to_dict() for e in self.rule_errors],
             "file_errors": self.file_errors,
+            "partial": self.partial,
+            "files_total": self.files_total,
         }
         if include_sources:
             data["sources"] = self.sources
@@ -164,9 +187,13 @@ class Engine:
 
     def scan_files(self, files: Iterable[tuple[str, str]], *, target: str = "<memoria>",
                    progress: ProgressFn | None = None, should_cancel: CancelFn | None = None,
-                   apply_excludes: bool = True) -> ScanReport:
+                   apply_excludes: bool = True, deadline: float | None = None) -> ScanReport:
         """Analiza archivos ya leídos. Con `apply_excludes` (por defecto) aplica las mismas
-        exclusiones que `collect()`: pruebas (si `exclude_tests`), `exclude_globs` y terceros."""
+        exclusiones que `collect()`: pruebas (si `exclude_tests`), `exclude_globs` y terceros.
+
+        `deadline` (en `time.monotonic()`): al alcanzarlo se deja de analizar y se devuelve lo
+        hecho hasta entonces con `partial=True`, en vez de perderlo todo.
+        """
         t0 = time.perf_counter()
         files = [(p.replace("\\", "/"), s) for p, s in files if detect_language(p)]
         kept = files if not apply_excludes else [
@@ -174,11 +201,15 @@ class Engine:
         if len(kept) != len(files):
             log.info("omitidos %d archivos de terceros o minificados", len(files) - len(kept))
         files = kept
-        report = ScanReport(target=target, rules_enabled=self.ruleset.ids)
+        report = ScanReport(target=target, rules_enabled=self.ruleset.ids, files_total=len(files))
         sources_lines: dict[str, list[str]] = {}
         for index, (path, source) in enumerate(files):
             if should_cancel is not None and should_cancel():
                 raise ScanCanceled()
+            if deadline is not None and time.monotonic() > deadline:
+                report.partial = True
+                log.info("tiempo agotado: %d de %d archivos analizados", report.files_scanned, len(files))
+                break
             if len(source.encode("utf-8", errors="replace")) > self.config.max_file_bytes:
                 report.file_errors.append({"path": path, "error": "archivo demasiado grande; omitido"})
                 continue
@@ -218,11 +249,9 @@ class Engine:
         return out
 
     def _excluded(self, rel: str) -> bool:
-        globs = list(self.config.exclude_globs)
-        if self.config.exclude_tests:
-            globs.extend(TEST_GLOBS)
-            if TEST_DIRS.intersection(rel.split("/")[:-1]):
-                return True
+        if self.config.exclude_tests and is_test_path(rel):
+            return True
+        globs = self.config.exclude_globs
         name = rel.rsplit("/", 1)[-1]
         return any(fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(name, g) for g in globs)
 

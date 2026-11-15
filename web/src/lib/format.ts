@@ -54,7 +54,8 @@ export const SCAN_ERROR_LABEL: Record<string, string> = {
   internal: "Error interno del analizador. Revisa los registros del servidor.",
   compression_ratio: "El ZIP tiene una razón de compresión sospechosa (posible bomba ZIP).",
   too_large: "El contenido descomprimido supera el límite permitido.",
-  too_many_entries: "El ZIP tiene demasiados archivos.",
+  too_many_entries: "El ZIP tiene demasiadas entradas (contando imágenes, documentos y carpetas).",
+  too_many_files: "El código tiene demasiados archivos para analizar en este servidor.",
   unsafe_path: "El ZIP contiene rutas absolutas o con «..».",
   symlink: "El ZIP contiene enlaces simbólicos.",
   invalid_zip: "El archivo no es un ZIP válido.",
@@ -113,6 +114,14 @@ export function formatDuration(startIso: string | null, endIso: string | null) {
 }
 
 export const numberFmt = new Intl.NumberFormat("es");
+
+/** Espera estimada en palabras: «menos de 1 min», «unos 4 min», «más de 1 h». */
+export function formatWait(seconds: number) {
+  if (seconds < 60) return "menos de 1 min";
+  const min = Math.round(seconds / 60);
+  if (min >= 60) return "más de 1 h";
+  return `unos ${min} min`;
+}
 
 export function plural(n: number, one: string, many: string) {
   return `${numberFmt.format(n)} ${n === 1 ? one : many}`;

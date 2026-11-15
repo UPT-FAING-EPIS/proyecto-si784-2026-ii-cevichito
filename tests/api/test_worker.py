@@ -17,7 +17,7 @@ from api.services import scan_jobs
 from api.services.archive import ArchiveError, Limits, read_zip
 from api.services.github_fetch import GitHubError, RepoRef, download_zipball, parse_repo
 from api.worker import queue
-from api.worker.runner import ScanCanceledByUser, ScanTimeout, process, run_isolated
+from api.worker.runner import ScanCanceledByUser, process, run_isolated
 
 from .conftest import PG_URL, make_settings
 
@@ -74,11 +74,29 @@ def test_symlinks_are_rejected():
     assert e.value.code == "symlink"
 
 
-def test_too_many_entries():
-    data = make_zip({f"d/f{i}.txt": b"" for i in range(20_001)})
+def test_only_source_files_count_for_the_file_limit():
+    # 50 imágenes no cuentan para el límite de 5: solo los 3 archivos de código.
+    files = {f"docs/img{i}.png": b"" for i in range(50)} | {f"app/m{i}.py": b"x = 1" for i in range(3)}
+    assert len(read_zip(make_zip(files), Limits(max_entries=5)).files) == 3
     with pytest.raises(ArchiveError) as e:
-        read_zip(data)
+        read_zip(make_zip({f"app/m{i}.py": b"x = 1" for i in range(6)}), Limits(max_entries=5))
+    assert e.value.code == "too_many_files" and e.value.status == 413
+
+
+def test_too_many_entries_in_total_is_still_rejected():
+    data = make_zip({f"d/f{i}.txt": b"" for i in range(101)})
+    with pytest.raises(ArchiveError) as e:
+        read_zip(data, Limits(max_entries=5))          # tope total = 5 × 20 = 100
     assert e.value.code == "too_many_entries" and e.value.status == 413
+
+
+def test_tests_dependencies_and_minified_are_dropped_on_decompression():
+    files = {"app/main.py": b"x = 1", "tests/test_main.py": b"x = 1", "app/test_utils.py": b"x = 1",
+             "node_modules/lib/index.js": b"x = 1", "static/jquery.min.js": b"x = 1",
+             "static/bundle.js": b"var a=1;" * 600}       # minificado sin decirlo en el nombre
+    contents = read_zip(make_zip(files))
+    assert [p for p, _ in contents.files] == ["app/main.py"]
+    assert {"path": "static/bundle.js", "reason": "código minificado"} in contents.skipped
 
 
 def test_oversized_entry_is_skipped_not_fatal():
@@ -306,18 +324,19 @@ def test_worker_marks_zip_bomb_as_failed(user, project):
     assert scan.error_code in {"compression_ratio", "too_large"}
 
 
-def test_timeout_marks_scan_failed(user, project):
+def test_timeout_gives_partial_result_not_failure(user, project):
     scan = _queued(user, project)
     queue.claim("w1")
-    assert process(scan.id, make_settings(scan_timeout_s=0)) == "failed"
+    assert process(scan.id, make_settings(scan_timeout_s=0)) == "done"
     db.session.refresh(scan)
-    assert scan.error_code == "timeout"
+    assert scan.partial is True and scan.error_code is None
+    assert scan.files_scanned == 0 and scan.progress_total >= 1   # se ve cuánto faltó
 
 
 def test_run_isolated_cancel_and_timeout():
     files = [("a.py", VULN)]
-    with pytest.raises(ScanTimeout):
-        run_isolated(files, None, timeout_s=0, on_tick=lambda d, t: False)
+    partial = run_isolated(list(files), None, timeout_s=0, on_tick=lambda d, t: False)
+    assert partial.partial and partial.files_scanned == 0 and partial.files_total == 1
     with pytest.raises(ScanCanceledByUser):
         run_isolated([("a.py", VULN * 20000)], None, timeout_s=60, on_tick=lambda d, t: True)
     report = run_isolated(files, None, timeout_s=60, on_tick=lambda d, t: False)
@@ -343,8 +362,134 @@ def test_skip_locked_gives_each_worker_a_different_job(app, user, project):
     a, b = _queued(user, project), _queued(user, project)
     other = db.engine.connect()
     tx = other.begin()
-    row = other.execute(queue.CLAIM_SQL, {"worker": "w2"}).first()  # w2 tiene una fila bloqueada
+    row = other.execute(queue.CLAIM_SQL, queue.claim_params("w2")).first()  # w2 tiene una fila bloqueada
     mine = queue.claim("w1")
     tx.commit()
     other.close()
     assert {row[0], mine} == {a.id, b.id}
+
+
+# --- Caché de resultados por contenido ------------------------------------------------------------
+
+def test_identical_content_is_analyzed_once_and_each_project_keeps_its_own_issues(app, user, project):
+    from api.models.entities import Project, ScanResultCache, User
+
+    other = User(google_sub="test|otra", email="luis@example.com", name="Luis")
+    db.session.add(other)
+    db.session.flush()
+    other_project = Project(owner_id=other.id, name="demo-luis")
+    db.session.add(other_project)
+    db.session.commit()
+
+    first = _queued(user, project)
+    queue.claim("w1")
+    assert process(first.id, SETTINGS) == "done"
+    second = _queued(other, other_project)
+    queue.claim("w1")
+    assert process(second.id, SETTINGS) == "done"
+
+    db.session.refresh(first)
+    db.session.refresh(second)
+    assert first.result_reused is False and second.result_reused is True
+    assert first.summary["by_severity"] == second.summary["by_severity"]
+    assert db.session.scalar(select(ScanResultCache.hits)) == 1
+    by_project = {i.project_id for i in db.session.scalars(select(Issue))}
+    assert by_project == {project.id, other_project.id}  # cada uno con su propio historial
+
+
+def test_cache_key_changes_with_content_rules_or_engine_scope():
+    from api.services.result_cache import cache_key, content_digest
+
+    a = content_digest([("app.py", "x = 1\n")])
+    assert a == content_digest([("app.py", "x = 1\n")])
+    assert a != content_digest([("app.py", "x = 2\n")])
+    assert a != content_digest([("otro.py", "x = 1\n")])
+    assert cache_key(a, None, True) != cache_key(a, ["py/sql-injection"], True)
+    assert cache_key(a, None, True) != cache_key(a, None, False)
+
+
+def test_partial_results_are_not_cached(user, project):
+    from api.models.entities import ScanResultCache
+
+    scan = _queued(user, project)
+    queue.claim("w1")
+    process(scan.id, make_settings(scan_timeout_s=0))
+    assert db.session.scalar(select(ScanResultCache)) is None
+
+
+# --- Orden de la cola: prioridad, turnos por usuario y envejecimiento ---------------------------
+
+def _raw_scan(owner, proj, source, minutes_ago, size=None):
+    s = Scan(project_id=proj.id, created_by=owner.id, source=source, source_ref=f"{source}-{minutes_ago}",
+             status="queued", queued_at=utcnow() - timedelta(minutes=minutes_ago, seconds=0))
+    db.session.add(s)
+    db.session.flush()
+    if size is not None:
+        db.session.add(ScanUpload(scan_id=s.id, content=b"x", filename="a.zip", sha256="0" * 64, size=size))
+    return s
+
+
+def _users_and_projects(n):
+    from api.models.entities import Project, User
+
+    out = []
+    for i in range(n):
+        u = User(google_sub=f"test|cola{i}", email=f"u{i}@example.com", name=f"U{i}")
+        db.session.add(u)
+        db.session.flush()
+        p = Project(owner_id=u.id, name=f"p{i}")
+        db.session.add(p)
+        db.session.flush()
+        out.append((u, p))
+    return out
+
+
+def test_queue_puts_fast_scans_first_and_alternates_users(app):
+    (a, pa), (b, pb), (c, pc) = _users_and_projects(3)
+    a1 = _raw_scan(a, pa, "github", 3)
+    a2 = _raw_scan(a, pa, "github", 2.5)
+    a3 = _raw_scan(a, pa, "github", 2.4)
+    b1 = _raw_scan(b, pb, "github", 2)
+    big_zip = _raw_scan(c, pc, "zip", 1.5, size=5 * 1024 * 1024)
+    small_zip = _raw_scan(c, pc, "zip", 1.2, size=10 * 1024)
+    snippet = _raw_scan(b, pb, "snippet", 1)
+    db.session.commit()
+
+    claimed = [queue.claim("w1") for _ in range(7)]
+    assert claimed[0] == snippet.id           # lo más rápido primero
+    assert claimed[1] == small_zip.id         # luego ZIP pequeños
+    # Después, por turnos: a nunca fue atendido, así que va antes que nadie; luego b (atendido
+    # en el 1.º turno), luego c (en el 2.º) y al final el resto de a.
+    assert claimed[2] == a1.id
+    assert claimed[3] == b1.id
+    assert claimed[4] == big_zip.id
+    assert claimed[5:] == [a2.id, a3.id]
+
+
+def test_queue_aging_lifts_old_scans_over_fast_ones(app):
+    (a, pa), (b, pb) = _users_and_projects(2)
+    old_repo = _raw_scan(a, pa, "github", 6)     # más de 5 min esperando
+    snippet = _raw_scan(b, pb, "snippet", 0.1)
+    db.session.commit()
+    assert queue.queue_order()[0] == old_repo.id
+    assert queue.claim("w1") == old_repo.id
+    assert queue.claim("w1") == snippet.id
+
+
+def test_queue_position_counts_running_and_estimates_with_median(app):
+    (a, pa), (b, pb) = _users_and_projects(2)
+    # Historial: tres escaneos de 10, 20 y 600 s -> la mediana (20 s) no se dispara por el lento.
+    for secs in (10, 20, 600):
+        done = _raw_scan(a, pa, "github", 60)
+        done.status, done.started_at = "done", utcnow() - timedelta(minutes=30)
+        done.finished_at = done.started_at + timedelta(seconds=secs)
+    running = _raw_scan(a, pa, "github", 5)
+    running.status, running.started_at = "running", utcnow()
+    first = _raw_scan(a, pa, "github", 2)
+    second = _raw_scan(b, pb, "github", 1)
+    db.session.commit()
+    assert queue.typical_duration_s() == 20
+    # a ya tiene uno en curso, así que el de b (nunca atendido) pasa delante del de a.
+    assert queue.position(second) == {"ahead": 1, "eta_s": 40}    # el que está en curso + él
+    assert queue.position(first) == {"ahead": 2, "eta_s": 60}
+    assert queue.position(running) is None

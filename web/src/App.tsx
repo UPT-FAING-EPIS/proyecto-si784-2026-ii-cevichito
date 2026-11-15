@@ -16,6 +16,8 @@ const IssuePage = lazy(() => import("@/pages/IssuePage"));
 const Rules = lazy(() => import("@/pages/Rules"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const About = lazy(() => import("@/pages/About"));
+const Challenges = lazy(() => import("@/pages/Challenges"));
+const ChallengePage = lazy(() => import("@/pages/ChallengePage"));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, status, error, refresh } = useAuth();
@@ -68,6 +70,8 @@ export function AppRoutes() {
         <Route path="/escaneos/:scanId" element={<Lazy><ScanPage /></Lazy>} />
         <Route path="/escaneos/:scanId/comparar" element={<Lazy><ScanDiff /></Lazy>} />
         <Route path="/issues/:issueId" element={<Lazy><IssuePage /></Lazy>} />
+        <Route path="/retos" element={<Lazy><Challenges /></Lazy>} />
+        <Route path="/retos/:challengeId" element={<Lazy><ChallengePage /></Lazy>} />
         <Route path="/reglas" element={<Lazy><Rules /></Lazy>} />
         <Route path="/ajustes" element={<Lazy><Settings /></Lazy>} />
         <Route path="/acerca" element={<Lazy><About /></Lazy>} />

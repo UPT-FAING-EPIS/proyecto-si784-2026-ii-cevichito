@@ -1,4 +1,4 @@
-import { BookOpen, FolderGit2, Info, LogOut, Menu, Search, Settings } from "lucide-react";
+import { BookOpen, FolderGit2, GraduationCap, Info, LogOut, Menu, Search, Settings } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/proyectos", label: "Proyectos", icon: FolderGit2 },
+  { to: "/retos", label: "Retos", icon: GraduationCap },
   { to: "/reglas", label: "Reglas", icon: BookOpen },
   { to: "/ajustes", label: "Ajustes", icon: Settings },
   { to: "/acerca", label: "Acerca de", icon: Info },

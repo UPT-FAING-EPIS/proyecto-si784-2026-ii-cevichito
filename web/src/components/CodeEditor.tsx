@@ -29,23 +29,27 @@ export function CodeEditor({
   onChange,
   python: isPython,
   labelledBy,
+  height = "360px",
+  placeholder = "Pega aquí el código que quieres analizar",
 }: {
   value: string;
   onChange: (v: string) => void;
   python: boolean;
   labelledBy: string;
+  height?: string;
+  placeholder?: string;
 }) {
   return (
     <div className="overflow-hidden rounded border border-input">
       <CodeMirror
         value={value}
         onChange={onChange}
-        height="360px"
+        height={height}
         theme="none"
         basicSetup={{ syntaxHighlighting: false, foldGutter: false, highlightActiveLineGutter: true }}
         extensions={[theme, syntaxHighlighting(highlight), ...(isPython ? [python()] : [])]}
         aria-labelledby={labelledBy}
-        placeholder="Pega aquí el código que quieres analizar"
+        placeholder={placeholder}
       />
     </div>
   );

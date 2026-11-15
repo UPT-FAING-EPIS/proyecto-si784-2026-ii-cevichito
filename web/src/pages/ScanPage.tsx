@@ -23,6 +23,7 @@ import {
   TRIAGE_LABEL,
   formatDate,
   formatDuration,
+  formatWait,
   numberFmt,
   plural,
   scanErrorText,
@@ -51,7 +52,13 @@ function ScanRun({ scan, onChanged }: { scan: Scan; onChanged: () => void }) {
     <section className="grid max-w-xl gap-4" aria-live="polite">
       <div className="grid gap-2">
         <ScanStatusText status={scan.status} className="font-medium" />
-        {scan.status === "queued" && <p className="text-muted-foreground">Esperando a que un proceso de análisis quede libre.</p>}
+        {scan.status === "queued" && (
+          <p className="text-muted-foreground">
+            {scan.queue && scan.queue.ahead > 0
+              ? `${scan.queue.ahead === 1 ? "Hay 1 escaneo" : `Hay ${numberFmt.format(scan.queue.ahead)} escaneos`} delante; ${formatWait(scan.queue.eta_s)} de espera.`
+              : "Es el siguiente: empezará en cuanto el análisis quede libre."}
+          </p>
+        )}
         {scan.status === "running" && (
           <>
             <progress
@@ -203,6 +210,21 @@ function ScanResults({ scan }: { scan: Scan }) {
 
   return (
     <>
+      {scan.partial && (
+        <p role="status" className="mb-3 flex items-start gap-2 rounded-lg border border-sev-medium-bar bg-sev-medium-bg px-3 py-2 text-sm">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            Resultado parcial: se acabó el tiempo y se analizaron{" "}
+            {numberFmt.format(scan.progress.files_done ?? 0)} de {plural(scan.progress.files_total ?? 0, "archivo", "archivos")}.
+            Los archivos sin analizar no se dan por corregidos.
+          </span>
+        </p>
+      )}
+      {scan.result_reused && (
+        <p className="mb-3 text-sm text-muted-foreground">
+          Resultado reutilizado: otro escaneo ya analizó exactamente este mismo código con las mismas reglas.
+        </p>
+      )}
       <dl className="mb-4 flex flex-wrap gap-x-6 gap-y-1 text-sm">
         {[
           ["Archivos", scan.files_scanned],

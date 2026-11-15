@@ -46,7 +46,7 @@ def _open_counts(project_id) -> dict[str, int]:
 @login_required
 def list_projects():
     limit, offset = page_params()
-    rows = list(db.session.scalars(select(Project).where(Project.owner_id == g.user.id)
+    rows = list(db.session.scalars(select(Project).where(Project.owner_id == g.user.id, Project.challenge_id.is_(None))
                                    .order_by(Project.created_at.desc(), Project.id).offset(offset).limit(limit + 1)))
     items = [serializers.project(p, _last_scan(p.id), _open_counts(p.id)) for p in rows[:limit]]
     return paginated(items, limit, offset, len(rows) > limit)

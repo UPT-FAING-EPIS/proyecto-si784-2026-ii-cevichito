@@ -1,5 +1,5 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { BookOpen, FolderGit2, Info, Moon, Settings } from "lucide-react";
+import { BookOpen, FolderGit2, GraduationCap, Info, Moon, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "@/api/useApi";
 import type { Page, Project } from "@/api/types";
@@ -32,6 +32,9 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               <CommandGroup heading="Ir a">
                 <CommandItem onSelect={() => go("/proyectos")}>
                   <FolderGit2 aria-hidden /> Proyectos
+                </CommandItem>
+                <CommandItem onSelect={() => go("/retos")}>
+                  <GraduationCap aria-hidden /> Retos de corrección
                 </CommandItem>
                 <CommandItem onSelect={() => go("/reglas")}>
                   <BookOpen aria-hidden /> Catálogo de reglas

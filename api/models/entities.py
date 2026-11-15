@@ -19,6 +19,7 @@ from sqlalchemy import (
     JSON, BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, LargeBinary,
     SmallInteger, String, Text, UniqueConstraint, Uuid,
 )
+from sqlalchemy import false as sa_false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -79,6 +80,9 @@ class Project(db.Model):
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Un intento de reto es un proyecto oculto del alumno (no aparece en el panel de proyectos).
+    challenge_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    challenge_solved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class RuleRecord(db.Model):
@@ -136,12 +140,32 @@ class Scan(db.Model):
     rule_errors: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
     baseline_scan_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("scans.id", ondelete="SET NULL"))
     request_id: Mapped[str | None] = mapped_column(String(64))
+    # Se acabó el tiempo y solo se analizó una parte (los archivos sin analizar no se dan por corregidos).
+    partial: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
+    # El resultado salió de la caché: otro escaneo analizó exactamente el mismo contenido.
+    result_reused: Mapped[bool] = mapped_column(Boolean, default=False, server_default=sa_false())
 
     project: Mapped[Project] = relationship()
 
     @property
     def finished(self) -> bool:
         return self.status in {"done", "failed", "canceled"}
+
+
+class ScanResultCache(db.Model):
+    """Resultado del motor para un contenido concreto, para no analizarlo dos veces.
+
+    La clave es un hash del contenido analizado, la versión del motor y las reglas pedidas: solo
+    coincide quien tiene exactamente el mismo código, así que reutilizarlo no expone nada.
+    Se guardan los hallazgos y el código solo de los archivos con hallazgos (comprimido).
+    """
+
+    __tablename__ = "scan_result_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    payload: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    hits: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class ScanUpload(db.Model):
