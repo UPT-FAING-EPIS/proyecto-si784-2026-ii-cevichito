@@ -1,9 +1,12 @@
 # SAST Studio
 
-## Estudiantes
+## Información
 
-- ***Sagua Ramos, Gustavo Alonso***
-- ***Serrano Ibañez, Nestor Juice Yomar***
+- **Asignatura:** Calidad y Pruebas de Software (SI-784)
+- **Docente:** Mg. Ing. Patrick José Cuadros Quiroga
+- **Integrantes:**
+  - Sagua Ramos, Gustavo Alonso (2018062254)
+  - Serrano Ibañez, Nestor Juice Yomar (2022075747)
 
 | Enlace | URL |
 |---|---|
@@ -14,11 +17,13 @@ Los documentos del curso (FD01 a FD06) están en la raíz del repositorio.
 
 ---
 
-Analizador estático de seguridad **didáctico y autoalojado**. Cada hallazgo explica en español
-qué ocurre, por qué es peligroso y cómo corregirlo, con un ejemplo vulnerable y otro corregido,
-y su CWE y OWASP. Guarda el historial de cada proyecto para ver qué hallazgos son nuevos, cuáles
-se corrigieron y cuáles siguen ahí. Se instala con Docker y PostgreSQL, sin enviar el código a
-terceros.
+Analizador estático de seguridad **didáctico y autoalojado** que **enseña a corregir**. Cada
+hallazgo explica qué ocurre, por qué es peligroso y cómo corregirlo, con un ejemplo vulnerable y
+otro corregido, y su CWE y OWASP. Los **retos de corrección** ponen en práctica lo aprendido:
+el usuario arregla código vulnerable en el navegador y el propio analizador comprueba si lo
+corrigió de verdad. Guarda el historial de cada proyecto para ver qué hallazgos son nuevos,
+cuáles se corrigieron y cuáles siguen ahí. Se instala con Docker y PostgreSQL, sin enviar el
+código a terceros.
 
 Está pensado para **aprender seguridad**: en un curso, en un laboratorio o por tu cuenta. No
 pretende sustituir a un escáner de producción como Semgrep Pro o CodeQL.
@@ -32,6 +37,11 @@ pretende sustituir a un escáner de producción como Semgrep Pro o CodeQL.
   HTML/Vue/Svelte** con reglas heurísticas de menor confianza.
 - **Explica cada hallazgo:** el recorrido del dato desde la entrada hasta el uso peligroso, qué
   ocurre, cómo se corrige y un ejemplo vulnerable y otro corregido.
+- **Retos de corrección** (`/retos`): 8 ejercicios con código vulnerable preparado (inyección
+  SQL, inyección de comandos, path traversal, XSS, hash débil, secreto en el código, `eval` y
+  `pickle`). Se corrige en un editor dentro del navegador, con pistas de una en una, y el
+  analizador da el veredicto: superado, la vulnerabilidad sigue, se silenció en vez de
+  corregirse o apareció un fallo nuevo. Cada usuario ve cuántos retos lleva superados.
 - **Mide el progreso entre escaneos:** nuevos, persisten, corregidos y reabiertos. Cada problema
   tiene una huella estable que sobrevive a los cambios de línea, y tu revisión (falso positivo,
   riesgo aceptado) se conserva al volver a escanear.
@@ -133,6 +143,10 @@ Navegador ──▶ Gunicorn + Flask (MVC) ──▶ PostgreSQL ◀── Worker
     propio historial. Útil cuando un curso entero escanea el mismo repositorio.
   - **Resultado parcial:** si se agota el tiempo, se guarda lo analizado y se indica cuántos
     archivos faltaron, en vez de perderlo todo.
+- **`api/challenges/`**: el catálogo de retos. Cada reto es una carpeta en `data/` con su
+  enunciado y pistas (`reto.yaml`), el código vulnerable y una solución de referencia que las
+  pruebas verifican. Un intento se guarda como un proyecto oculto del usuario; el veredicto
+  compara el escaneo del código de partida con el del envío.
 - **`web/`**: React + TypeScript con componentes shadcn/ui y los tokens de [`web/DESIGN.md`](web/DESIGN.md).
 
 La seguridad sigue OWASP ASVS 5.0 nivel 2 como objetivo. Algunos ejemplos:
@@ -184,6 +198,7 @@ push:
 
 ## Despliegue
 
+- **Publicado:** <https://sast-studio.onrender.com>, en Render con la base de datos en Neon.
 - **Local o en un servidor propio:** `docker compose up`, ver «Puesta en marcha».
 - **Gratis en Render + Neon:** [`render.yaml`](render.yaml) y la guía paso a paso
   [`docs/despliegue-render.md`](docs/despliegue-render.md). En el plan gratis, web y worker
@@ -199,7 +214,6 @@ push:
 | [`docs/respuesta-revision.md`](docs/respuesta-revision.md) | Respuesta a la revisión técnica: diferenciación, arquitectura, reglas y base de datos. |
 | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Contrato de la API `/api/v1`. |
 | [`docs/rules/`](docs/rules/README.md) | Una página por regla. |
-| [`docs/ESTADO.md`](docs/ESTADO.md) | Estado de la refactorización por fases y lo pendiente. |
 
 ## Licencia
 
