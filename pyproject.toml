@@ -48,4 +48,19 @@ include = ["sast*", "api*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not ui and not sistema and not aceptacion'"
+markers = [
+    "aceptacion: escenarios Gherkin de aceptación (pytest-bdd) contra el servidor real",
+    "sistema: pruebas de sistema por HTTP contra el servidor real (procesos separados)",
+    "ui: pruebas de interfaz en un navegador real (Playwright); necesitan el servidor de pruebas",
+]
+
+# Pruebas de mutación (solo Linux/WSL o la CI): `mutmut run` y `python scripts/reporte_mutacion.py`.
+# Se mutan los módulos de lógica pura que deciden qué es «el mismo» hallazgo, qué se silencia
+# y qué entra de un ZIP, y se ejecutan solo las pruebas unitarias que los cubren.
+[tool.mutmut]
+source_paths = ["sast/", "api/"]
+only_mutate = ["sast/engine/fingerprint.py", "sast/engine/context.py", "api/services/archive.py"]
+also_copy = ["sast/", "api/", "migrations/", "samples/"]
+pytest_add_cli_args_test_selection = ["tests/engine/", "tests/unidad/", "tests/api/test_worker.py"]
+mutate_only_covered_lines = true

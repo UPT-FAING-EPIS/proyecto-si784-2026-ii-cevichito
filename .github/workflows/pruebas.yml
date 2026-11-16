@@ -1,0 +1,206 @@
+name: Pruebas automatizadas y reportes
+
+# Los cuatro tipos de prueba del curso, cada uno con su reporte HTML:
+#   1. Unitarias + mutación (mutmut) + cobertura
+#   2. Integración (API con PostgreSQL 16) y sistema (producto completo por HTTP)
+#   3. Interfaz de usuario (Chromium con Playwright, con capturas)
+#   4. Aceptación (escenarios Gherkin en español con pytest-bdd)
+# El último job los reúne en el artefacto «reportes-de-pruebas» (abrir index.html) y escribe el
+# resumen del run.
+
+on:
+  push:
+    branches: [main, "pruebas/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  unitarias:
+    name: 1 · Unitarias y mutación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-pruebas.txt
+      - name: Dependencias
+        run: |
+          pip install -r requirements.lock -r requirements-pruebas.txt
+          pip install -e . --no-deps
+      - name: Pruebas unitarias con cobertura
+        run: >
+          python -m pytest tests/engine tests/unidad tests/rules tests/golden tests/test_cli.py
+          --cov=sast --cov-report=term --cov-report=html:reportes/1-unitarias/cobertura
+          --junitxml=reportes/1-unitarias/unitarias.xml
+          --html=reportes/1-unitarias/unitarias.html --self-contained-html
+      - name: Pruebas de mutación (mutmut)
+        if: always()
+        run: |
+          python -m mutmut run --max-children 4 || true
+          python scripts/reporte_mutacion.py --html reportes/1-unitarias/mutacion.html --md reportes/1-unitarias/mutacion.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 1-unitarias
+          path: reportes/1-unitarias
+
+  integracion-sistema:
+    name: 2 · Integración y sistema
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sast
+          POSTGRES_PASSWORD: sast-ci
+          POSTGRES_DB: sast_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sast -d sast_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      # La prueba de sistema comprueba también que el servidor entrega la web compilada.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Compilar la web
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-pruebas.txt
+      - name: Dependencias
+        run: |
+          pip install -r requirements.lock -r requirements-pruebas.txt
+          pip install -e . --no-deps
+      - name: Integración (API + PostgreSQL 16 con migraciones reales)
+        env:
+          TEST_DATABASE_URL: postgresql://sast:sast-ci@localhost:5432/sast_test
+        run: >
+          python -m pytest tests/api
+          --junitxml=reportes/2-integracion-sistema/integracion.xml
+          --html=reportes/2-integracion-sistema/integracion.html --self-contained-html
+      - name: Sistema (web + worker + base de datos por HTTP)
+        if: always()
+        run: >
+          python -m pytest -m sistema tests/e2e
+          --junitxml=reportes/2-integracion-sistema/sistema.xml
+          --html=reportes/2-integracion-sistema/sistema.html --self-contained-html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 2-integracion-sistema
+          path: reportes/2-integracion-sistema
+
+  interfaz:
+    name: 3 · Interfaz de usuario
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Compilar la web
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-pruebas.txt
+      - name: Dependencias y navegador
+        run: |
+          pip install -r requirements.lock -r requirements-pruebas.txt
+          pip install -e . --no-deps
+          python -m playwright install --with-deps chromium
+      - name: Pruebas de interfaz en Chromium
+        run: >
+          python -m pytest -m ui tests/e2e
+          --screenshot only-on-failure --output reportes/3-interfaz/fallos
+          --junitxml=reportes/3-interfaz/interfaz.xml
+          --html=reportes/3-interfaz/interfaz.html --self-contained-html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 3-interfaz
+          path: reportes/3-interfaz
+
+  aceptacion:
+    name: 4 · Aceptación (Gherkin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-pruebas.txt
+      - name: Dependencias
+        run: |
+          pip install -r requirements.lock -r requirements-pruebas.txt
+          pip install -e . --no-deps
+      - name: Escenarios de aceptación
+        run: >
+          python -m pytest -m aceptacion tests/aceptacion --gherkin-terminal-reporter
+          --cucumberjson=reportes/4-aceptacion/cucumber.json
+          --junitxml=reportes/4-aceptacion/aceptacion.xml
+          --html=reportes/4-aceptacion/aceptacion.html --self-contained-html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 4-aceptacion
+          path: reportes/4-aceptacion
+
+  reportes:
+    name: Reportes de pruebas
+    runs-on: ubuntu-latest
+    needs: [unitarias, integracion-sistema, interfaz, aceptacion]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          path: reportes
+      - name: Índice y resumen
+        run: |
+          python scripts/indice_reportes.py reportes
+          cat reportes/resumen.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reportes-de-pruebas
+          path: reportes

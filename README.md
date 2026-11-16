@@ -196,6 +196,19 @@ push:
 - el autoanálisis con SAST Studio y Bandit;
 - un arranque de la imagen Docker igual al de Render.
 
+Además, [`.github/workflows/pruebas.yml`](.github/workflows/pruebas.yml) ejecuta en cada push
+los cuatro tipos de prueba automatizada y deja sus reportes HTML en el artefacto
+`reportes-de-pruebas`:
+
+| Tipo | Herramientas | Informe |
+|---|---|---|
+| Unitarias y de mutación | pytest, pytest-cov, mutmut | [`docs/pruebas/01-unitarias-y-mutacion.md`](docs/pruebas/01-unitarias-y-mutacion.md) |
+| Integración y sistema | pytest con PostgreSQL 16, servidor real por HTTP | [`docs/pruebas/02-integracion-y-sistema.md`](docs/pruebas/02-integracion-y-sistema.md) |
+| Interfaz de usuario | Playwright con Chromium | [`docs/pruebas/03-interfaz-de-usuario.md`](docs/pruebas/03-interfaz-de-usuario.md) |
+| Aceptación | Gherkin en español con pytest-bdd | [`docs/pruebas/04-aceptacion.md`](docs/pruebas/04-aceptacion.md) |
+
+Cómo ejecutarlas en local: [`docs/pruebas/README.md`](docs/pruebas/README.md).
+
 ## Despliegue
 
 - **Publicado:** <https://sast-studio.onrender.com>, en Render con la base de datos en Neon.
