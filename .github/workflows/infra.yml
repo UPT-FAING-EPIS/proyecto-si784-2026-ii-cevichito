@@ -1,0 +1,115 @@
+name: Infraestructura (Terraform)
+
+# Crea la infraestructura de infra/ (Render + Neon) y publica un reporte con las pruebas
+# superadas y el costo mensual estimado.
+#
+#   - En cada push o PR que toque infra/: formato, validación y pruebas (proveedores simulados,
+#     no hace falta ninguna credencial).
+#   - Si están las credenciales: además hace el plan y el reporte usa los planes reales.
+#   - A mano (Run workflow → aplicar): aplica los cambios en Render y Neon.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   RENDER_API_KEY, RENDER_OWNER_ID   cuenta de Render
+#   NEON_API_KEY                      cuenta de Neon
+#   TF_STATE_PG                       cadena de PostgreSQL donde se guarda el estado de Terraform
+#   DATABASE_URL                      cadena directa de Neon para la aplicación
+# Variable: NEON_ORG_ID (org-...)
+
+on:
+  push:
+    branches: [main]
+    paths: ["infra/**", "scripts/reporte_terraform.py", ".github/workflows/infra.yml"]
+  pull_request:
+    paths: ["infra/**", "scripts/reporte_terraform.py", ".github/workflows/infra.yml"]
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: "Aplicar los cambios en Render y Neon"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: infra
+
+env:
+  TF_IN_AUTOMATION: "1"
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  RENDER_OWNER_ID: ${{ secrets.RENDER_OWNER_ID }}
+  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+  PG_CONN_STR: ${{ secrets.TF_STATE_PG }}
+  TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
+  TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+
+jobs:
+  terraform:
+    name: Validar, probar y planificar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Formato
+        run: terraform fmt -check -recursive
+      - name: Iniciar sin estado remoto
+        run: terraform init -backend=false -input=false
+      - name: Validar
+        run: terraform validate
+      - name: Pruebas
+        run: terraform test -junit-xml=resultado-pruebas.xml
+      - name: Plan (solo con credenciales)
+        id: plan
+        if: env.RENDER_API_KEY != '' && env.NEON_API_KEY != '' && env.PG_CONN_STR != ''
+        run: |
+          terraform init -input=false -reconfigure
+          terraform plan -input=false -out=plan.tfplan
+          terraform show -json plan.tfplan > plan.json
+      - name: Reporte de pruebas y costos
+        if: always()
+        working-directory: .
+        run: |
+          plan=""
+          [ -f infra/plan.json ] && plan="--plan infra/plan.json"
+          python scripts/reporte_terraform.py --junit infra/resultado-pruebas.xml $plan --salida reporte-infra.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-infra
+          path: |
+            reporte-infra.md
+            infra/resultado-pruebas.xml
+
+  aplicar:
+    name: Aplicar en Render y Neon
+    needs: terraform
+    if: github.event_name == 'workflow_dispatch' && inputs.aplicar
+    runs-on: ubuntu-latest
+    environment: produccion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.4"
+          terraform_wrapper: false
+      - name: Comprobar credenciales
+        run: |
+          for v in RENDER_API_KEY RENDER_OWNER_ID NEON_API_KEY PG_CONN_STR; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto de $v"; exit 1; fi
+          done
+      - name: Aplicar
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+          echo "URL: $(terraform output -raw url)" >> "$GITHUB_STEP_SUMMARY"

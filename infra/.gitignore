@@ -1,0 +1,8 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+plan.tfplan
+plan.json
+resultado-pruebas.xml
