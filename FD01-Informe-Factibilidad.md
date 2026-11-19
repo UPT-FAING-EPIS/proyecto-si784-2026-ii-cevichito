@@ -2,6 +2,8 @@
 
 > Versión en Markdown del documento `FD01-EPIS-Informe de Factibilidad.docx` (el Word es la versión oficial, con portada, índice e imágenes).
 
+![Imagen 1](media/md/fd01-imagen-1.png)
+
 **UNIVERSIDAD PRIVADA DE TACNA**
 
 **FACULTAD DE INGENIERÍA**
@@ -35,7 +37,28 @@ Integrantes:
 | Versión | Hecha por | Revisada por | Aprobada por | Fecha | Motivo |
 | 1.0 | SRGA, SINJ |  |  | 14/11/2026 | Versión original |
 
-**ÍNDICE** **GENERAL**
+**Índice**
+
+- SAST Studio: Analizador Estático de Seguridad Didáctico y Autoalojado
+- Documento Informe de Factibilidad
+- Versión 1.0
+- Descripción del Proyecto
+  - Nombre del proyecto
+  - Duración del proyecto
+  - Descripción
+  - 1.4 Objetivos
+- Riesgos
+- Análisis de la Situación actual
+  - Planteamiento del problema
+  - Consideraciones de hardware y software
+- Estudio de Factibilidad
+  - Factibilidad Técnica
+  - Factibilidad Económica
+  - Factibilidad Operativa
+  - Factibilidad Legal
+  - Factibilidad Social
+  - Factibilidad Ambiental
+- Conclusiones
 
 **Informe de Factibilidad**
 

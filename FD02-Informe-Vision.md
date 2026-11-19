@@ -2,6 +2,8 @@
 
 > Versión en Markdown del documento `FD02-EPIS-Informe Vision.docx` (el Word es la versión oficial, con portada, índice e imágenes).
 
+![Imagen 1](media/md/fd02-imagen-1.png)
+
 **UNIVERSIDAD PRIVADA DE TACNA**
 
 **FACULTAD DE INGENIERÍA**
@@ -40,7 +42,42 @@ Integrantes:
 | Versión | Hecha por | Revisada por | Aprobada por | Fecha | Motivo |
 | 1.0 | SRGA, SINJ |  |  | 14/11/2026 | Versión original |
 
-**ÍNDICE** **GENERAL**
+**Índice**
+
+- SAST Studio: Analizador Estático de Seguridad Didáctico y Autoalojado
+- Documento de Visión
+- Versión 1.0
+- Introducción
+  - Propósito
+  - Alcance
+  - Definiciones, Siglas y Abreviaturas
+  - Referencias
+  - Visión General
+- Posicionamiento
+  - Oportunidad de negocio
+  - Definición del problema
+- Descripción de los interesados y usuarios
+  - Resumen de los interesados
+  - Resumen de los usuarios
+  - Entorno de usuario
+  - Perfiles de los interesados
+  - Perfiles de los Usuarios
+  - Necesidades de los interesados y usuarios
+- Vista General del Producto
+  - Perspectiva del producto
+  - Resumen de capacidades
+  - Suposiciones y dependencias
+  - Costos y precios
+  - Licenciamiento e instalación
+- Características del producto
+- Restricciones
+- Rangos de calidad
+- Precedencia y Prioridad
+- Otros requerimientos del producto
+- CONCLUSIONES
+- RECOMENDACIONES
+- BIBLIOGRAFÍA
+- WEBGRAFÍA
 
 ## Introducción
 
