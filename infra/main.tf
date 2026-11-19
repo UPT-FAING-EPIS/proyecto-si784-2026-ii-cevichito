@@ -17,6 +17,7 @@ resource "neon_project" "db" {
 }
 
 resource "render_keyvalue" "ratelimit" {
+  count             = var.crear_keyvalue ? 1 : 0
   name              = "${var.nombre}-ratelimit"
   plan              = var.plan_keyvalue
   region            = var.region_render
@@ -36,7 +37,7 @@ locals {
     ADMIN_EMAILS              = { value = var.admin_emails }
     TRUST_PROXY               = { value = "true" }
     FORWARDED_ALLOW_IPS       = { value = "*" }
-    RATELIMIT_STORAGE_URI     = { value = render_keyvalue.ratelimit.connection_info.internal_connection_string }
+    RATELIMIT_STORAGE_URI     = { value = var.crear_keyvalue ? render_keyvalue.ratelimit[0].connection_info.internal_connection_string : "memory://" }
     WEB_CONCURRENCY           = { value = "1" }
     GUNICORN_THREADS          = { value = "4" }
     DB_POOL_SIZE              = { value = "2" }

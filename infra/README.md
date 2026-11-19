@@ -5,7 +5,7 @@ Crea lo mismo que `render.yaml`, pero como código de Terraform:
 | Recurso | Proveedor | Plan por defecto |
 |---|---|---|
 | `neon_project.db` (PostgreSQL 16) | `neondatabase/neon` | free |
-| `render_keyvalue.ratelimit` (límite de peticiones) | `render-oss/render` | free |
+| `render_keyvalue.ratelimit` (límite de peticiones, opcional: `crear_keyvalue`) | `render-oss/render` | free; apagado por defecto porque Render permite uno gratis por cuenta |
 | `render_web_service.app` (API + worker, imagen Docker) | `render-oss/render` | free |
 
 El workflow [`infra.yml`](../.github/workflows/infra.yml) valida, prueba y planifica en cada

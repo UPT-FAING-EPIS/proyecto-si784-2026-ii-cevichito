@@ -30,8 +30,29 @@ run "planes_gratis_por_defecto" {
   command = plan
 
   assert {
-    condition     = render_web_service.app.plan == "free" && render_keyvalue.ratelimit.plan == "free"
-    error_message = "Por defecto todo debe ir en el plan gratis."
+    condition     = render_web_service.app.plan == "free" && length(render_keyvalue.ratelimit) == 0
+    error_message = "Por defecto el web va en plan gratis y no se crea un segundo Key Value (Render permite uno gratis)."
+  }
+  assert {
+    condition     = render_web_service.app.env_vars["RATELIMIT_STORAGE_URI"].value == "memory://"
+    error_message = "Sin Key Value propio, el límite de peticiones va en memoria."
+  }
+}
+
+run "key_value_opcional" {
+  command = apply # con proveedores simulados: no crea nada real
+
+  variables {
+    crear_keyvalue = true
+  }
+
+  assert {
+    condition     = length(render_keyvalue.ratelimit) == 1 && render_keyvalue.ratelimit[0].plan == "free"
+    error_message = "Con crear_keyvalue se crea un Key Value en plan gratis."
+  }
+  assert {
+    condition     = render_web_service.app.env_vars["RATELIMIT_STORAGE_URI"].value == "redis://red-mock:6379"
+    error_message = "El servicio usa la conexión interna del Key Value."
   }
 }
 

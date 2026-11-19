@@ -28,6 +28,12 @@ variable "plan_web" {
   default     = "free"
 }
 
+variable "crear_keyvalue" {
+  description = "Crear un Key Value propio. Render solo permite uno gratis por cuenta y ya lo usa el servicio creado con render.yaml; sin él, el límite de peticiones queda en memoria."
+  type        = bool
+  default     = false
+}
+
 variable "plan_keyvalue" {
   description = "Plan del Key Value (límite de peticiones)."
   type        = string

@@ -75,6 +75,8 @@ def costos(plan: Path | None) -> list[str]:
     planes = planes_del_plan(plan) if plan and plan.is_file() else planes_por_defecto()
     filas, total = [], 0.0
     for tipo, nombre in NOMBRES.items():
+        if tipo not in planes and plan and plan.is_file():
+            continue  # el recurso no está en el plan (p. ej. Key Value opcional)
         p = planes.get(tipo, "free")
         precio = PRECIOS[tipo].get(p)
         total += precio or 0
