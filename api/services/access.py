@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 
+from flask import current_app
 from sqlalchemy import select
 
 from ..errors import ApiError
@@ -44,3 +45,13 @@ def issue_of(user: User, issue_id: str) -> Issue:
     if i is None:
         raise ApiError(404)
     return i
+
+
+def is_admin(user: User) -> bool:
+    """Administrador = email verificado en la lista ADMIN_EMAILS de la configuración."""
+    return bool(user.email) and user.email.lower() in current_app.config["SETTINGS"].admins
+
+
+def require_admin(user: User) -> None:
+    if not is_admin(user):
+        raise ApiError(403, "forbidden", "Esta página es solo para administradores.")

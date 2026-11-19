@@ -24,7 +24,10 @@ _dt = iso_utc
 
 
 def me(user: User, csrf_token: str) -> dict[str, Any]:
-    return {"id": str(user.id), "email": user.email, "name": user.name, "csrf_token": csrf_token}
+    from ..services.access import is_admin
+
+    return {"id": str(user.id), "email": user.email, "name": user.name, "csrf_token": csrf_token,
+            "is_admin": is_admin(user)}
 
 
 def public_config(settings, version: str) -> dict[str, Any]:

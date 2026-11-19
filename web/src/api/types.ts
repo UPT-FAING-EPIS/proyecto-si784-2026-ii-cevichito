@@ -16,6 +16,7 @@ export interface Me {
   email: string;
   name: string;
   csrf_token: string;
+  is_admin?: boolean;
 }
 
 export interface PublicConfig {
@@ -228,4 +229,29 @@ export interface ChallengeDetail extends ChallengeSummary {
   keep: string[];
   rule_details: Rule[];
   attempt: ChallengeAttempt;
+}
+
+export interface Usage {
+  days: number;
+  from: string;
+  to: string;
+  totals: {
+    users: number;
+    active_users: number;
+    new_users: number;
+    projects: number;
+    scans: number;
+    findings: number;
+    issues_fixed: number;
+    challenge_attempts: number;
+    challenges_solved: number;
+    scan_seconds_median: number | null;
+    scan_seconds_p95: number | null;
+    failure_rate: number | null;
+  };
+  by_status: Record<string, number>;
+  by_source: Record<string, number>;
+  daily: { date: string; scans: number; failed: number; active_users: number; new_users: number }[];
+  top_rules: { rule_id: string; count: number }[];
+  challenges: { id: string; title: string; attempts: number; solved: number }[];
 }

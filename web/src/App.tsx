@@ -12,6 +12,7 @@ const ProjectOverview = lazy(() => import("@/pages/ProjectOverview"));
 const NewScan = lazy(() => import("@/pages/NewScan"));
 const ScanPage = lazy(() => import("@/pages/ScanPage"));
 const ScanDiff = lazy(() => import("@/pages/ScanDiff"));
+const Usage = lazy(() => import("@/pages/Usage"));
 const IssuePage = lazy(() => import("@/pages/IssuePage"));
 const Rules = lazy(() => import("@/pages/Rules"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -73,6 +74,7 @@ export function AppRoutes() {
         <Route path="/retos" element={<Lazy><Challenges /></Lazy>} />
         <Route path="/retos/:challengeId" element={<Lazy><ChallengePage /></Lazy>} />
         <Route path="/reglas" element={<Lazy><Rules /></Lazy>} />
+        <Route path="/uso" element={<Lazy><Usage /></Lazy>} />
         <Route path="/ajustes" element={<Lazy><Settings /></Lazy>} />
         <Route path="/acerca" element={<Lazy><About /></Lazy>} />
         <Route path="*" element={<NotFound />} />

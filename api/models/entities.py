@@ -45,6 +45,8 @@ def _in(column: str, values: tuple[str, ...]) -> str:
 
 
 class User(db.Model):
+    """Persona que entra con Google (o con el acceso de desarrollo). Se identifica por `google_sub`, no por el email."""
+
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -56,6 +58,8 @@ class User(db.Model):
 
 
 class AuthSession(db.Model):
+    """Sesión iniciada en el servidor. El navegador solo guarda el token; aquí se guarda su hash."""
+
     __tablename__ = "sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -73,6 +77,8 @@ class AuthSession(db.Model):
 
 
 class Project(db.Model):
+    """Proyecto de un usuario: agrupa sus escaneos e issues. Los intentos de retos son proyectos ocultos."""
+
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_projects_owner_name"),)
 
@@ -105,6 +111,8 @@ class RuleRecord(db.Model):
 
 
 class Scan(db.Model):
+    """Un análisis de código: su origen, su estado en la cola, su progreso y el resumen de resultados."""
+
     __tablename__ = "scans"
     __table_args__ = (
         CheckConstraint(_in("status", SCAN_STATUSES), name="status"),
@@ -182,6 +190,8 @@ class ScanUpload(db.Model):
 
 
 class Issue(db.Model):
+    """Problema de seguridad que persiste entre escaneos de un proyecto (mismo fingerprint). Lleva el triage."""
+
     __tablename__ = "issues"
     __table_args__ = (
         CheckConstraint(_in("lifecycle", LIFECYCLES), name="lifecycle"),
@@ -214,6 +224,8 @@ class Issue(db.Model):
 
 
 class Occurrence(db.Model):
+    """Aparición de un issue en un escaneo concreto: archivo, líneas, fragmento y traza."""
+
     __tablename__ = "occurrences"
     __table_args__ = (
         CheckConstraint(_in("change", CHANGES), name="change"),
@@ -243,6 +255,8 @@ class Occurrence(db.Model):
 
 
 class IssueEvent(db.Model):
+    """Historial de un issue: cambios de estado, de triage y comentarios."""
+
     __tablename__ = "issue_events"
     __table_args__ = (
         CheckConstraint(_in("kind", EVENT_KINDS), name="kind"),

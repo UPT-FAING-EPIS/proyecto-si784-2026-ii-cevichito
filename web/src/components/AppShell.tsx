@@ -1,4 +1,4 @@
-import { BookOpen, FolderGit2, GraduationCap, Info, LogOut, Menu, Search, Settings } from "lucide-react";
+import { BarChart3, BookOpen, FolderGit2, GraduationCap, Info, LogOut, Menu, Search, Settings } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
@@ -31,10 +31,15 @@ function Logo() {
   );
 }
 
+// Solo para administradores (ADMIN_EMAILS en el servidor).
+const NAV_ADMIN = { to: "/uso", label: "Uso", icon: BarChart3 };
+
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+  const { user } = useAuth();
+  const items = user?.is_admin ? [...NAV.slice(0, 3), NAV_ADMIN, ...NAV.slice(3)] : NAV;
   return (
     <ul className="grid gap-0.5">
-      {NAV.map(({ to, label, icon: Icon }) => (
+      {items.map(({ to, label, icon: Icon }) => (
         <li key={to}>
           <NavLink
             to={to}

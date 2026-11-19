@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { SEVERITIES, type Metrics } from "@/api/types";
+import { SEVERITIES, type Metrics, type Usage } from "@/api/types";
 import { SEVERITY_LABEL, formatShortDate } from "@/lib/format";
 import { useTokens } from "@/lib/useTokens";
 
@@ -77,6 +77,30 @@ export function NewVsFixed({ data }: { data: Metrics["new_vs_fixed"] }) {
             <Legend wrapperStyle={{ fontSize: 12, color: t["muted-foreground"] }} iconType="square" iconSize={10} />
             <Bar dataKey="new" name="Nuevos" fill={t["sev-high-bar"]} isAnimationActive={false} maxBarSize={24} />
             <Bar dataKey="fixed" name="Corregidos" fill={t.input} isAnimationActive={false} maxBarSize={24} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </figure>
+  );
+}
+
+/** Escaneos y usuarios activos por día (dashboard de uso). */
+export function DailyUsage({ data }: { data: Usage["daily"] }) {
+  const { t, axis, tooltip } = useChartTheme();
+  const rows = data.map((d) => ({ ...d, name: formatShortDate(`${d.date}T12:00:00Z`) })); // mediodía: evita el día anterior en UTC-5
+  return (
+    <figure>
+      <figcaption className="sr-only">Escaneos y usuarios activos por día.</figcaption>
+      <div className="h-56" aria-hidden>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+            <CartesianGrid vertical={false} stroke={t.border} />
+            <XAxis dataKey="name" {...axis} minTickGap={16} />
+            <YAxis allowDecimals={false} {...axis} />
+            <Tooltip {...tooltip} />
+            <Legend wrapperStyle={{ fontSize: 12, color: t["muted-foreground"] }} iconType="square" iconSize={10} />
+            <Bar dataKey="scans" name="Escaneos" fill={t["sev-info-bar"]} isAnimationActive={false} maxBarSize={18} />
+            <Bar dataKey="active_users" name="Usuarios activos" fill={t.input} isAnimationActive={false} maxBarSize={18} />
           </BarChart>
         </ResponsiveContainer>
       </div>

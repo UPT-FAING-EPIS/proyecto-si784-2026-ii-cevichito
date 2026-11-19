@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     public_origin: str = Field(default="http://localhost:8080",
                                validation_alias=AliasChoices("public_origin", "render_external_url"))
     extra_allowed_origins: list[str] = Field(default_factory=list)
+    # Emails que ven el dashboard de uso (/uso), separados por comas. Vacío: nadie.
+    admin_emails: str = ""
     trust_proxy: bool = False
     proxy_hops: int = 1                              # cuántos proxies hay delante (X-Forwarded-*)
     spa_dir: str | None = None                       # si se define, Flask sirve la SPA compilada (mismo origen)
@@ -113,3 +115,7 @@ class Settings(BaseSettings):
     @property
     def is_secure(self) -> bool:
         return self.public_origin.startswith("https://")
+
+    @property
+    def admins(self) -> set[str]:
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}

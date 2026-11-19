@@ -63,7 +63,7 @@ def test_dev_login_sets_secure_session_cookie(client):
         assert attr in cookie
     assert "Domain" not in cookie
     body = r.get_json()
-    assert set(body) == {"id", "email", "name", "csrf_token"}
+    assert set(body) == {"id", "email", "name", "csrf_token", "is_admin"}
     token = cookie.split(";")[0].split("=", 1)[1]
     stored = db.session.scalar(select(AuthSession))
     assert stored.token_hash != token and len(stored.token_hash) == 64  # se guarda el hash, no el token

@@ -71,7 +71,7 @@ def test_health_endpoints(client):
 
 
 def test_me_returns_whitelisted_fields(api):
-    assert set(api.get("/api/v1/auth/me").get_json()) == {"id", "email", "name", "csrf_token"}
+    assert set(api.get("/api/v1/auth/me").get_json()) == {"id", "email", "name", "csrf_token", "is_admin"}
 
 
 # --- Reglas ------------------------------------------------------------------------------------
@@ -332,6 +332,8 @@ def test_every_api_route_is_covered_by_bola_or_public(app):
               # ajeno (lo prueba test_challenges.py::test_attempts_are_private).
               "/api/v1/challenges", "/api/v1/challenges/<challenge_id>", "/api/v1/challenges/<challenge_id>/attempt",
               "/api/v1/challenges/<challenge_id>/submissions",
+              # Uso: datos agregados de todo el sistema, solo para administradores (test_usage.py).
+              "/api/v1/usage",
               "/api/<path:rest>"}
     covered = {u.replace("{pid}", "<project_id>").replace("{sid}", "<scan_id>").replace("{iid}", "<issue_id>")
                for _, u, _ in BOLA_CALLS}

@@ -57,6 +57,7 @@ components:
         email: { type: string }
         name: { type: string }
         csrf_token: { type: string }
+        is_admin: { type: boolean, description: "Puede ver el dashboard de uso" }
     Rule:
       type: object
       properties:
@@ -196,6 +197,30 @@ paths:
       security: []
       responses: { "200": { description: Listo }, "503": { description: No listo } }
 
+  /api/v1/usage:
+    get:
+      summary: Métricas de uso del producto (solo administradores definidos en ADMIN_EMAILS)
+      parameters:
+        - { name: days, in: query, schema: { type: integer, minimum: 1, maximum: 365, default: 30 } }
+      responses:
+        "200":
+          description: Totales, series diarias, reglas más frecuentes y retos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [days, totals, daily, top_rules, challenges]
+                properties:
+                  days: { type: integer }
+                  totals: { type: object }
+                  by_status: { type: object }
+                  by_source: { type: object }
+                  daily: { type: array, items: { type: object } }
+                  top_rules: { type: array, items: { type: object } }
+                  challenges: { type: array, items: { type: object } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
   /api/v1/config:
     get:
       summary: Configuración pública para la interfaz (métodos de acceso y límites)
