@@ -250,6 +250,7 @@ Esta sección la actualiza el workflow `documentacion.yml` a partir del código.
 - [Diagrama de clases](docs/arquitectura/diagrama-clases.md)
 - [Diagrama de componentes](docs/arquitectura/diagrama-componentes.md)
 - [Diagrama de despliegue](docs/arquitectura/diagrama-despliegue.md)
+- [Documentación técnica (clases y métodos)](https://upt-faing-epis.github.io/proyecto-si784-2026-ii-cevichito/), publicada en GitHub Pages
 
 <details><summary>Diagrama entidad-relación</summary>
 
