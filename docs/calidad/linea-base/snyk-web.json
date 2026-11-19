@@ -1,0 +1,31 @@
+{
+  "dependencyCount": 38,
+  "displayTargetFile": "web/package-lock.json",
+  "filesystemPolicy": false,
+  "filtered": {
+    "ignore": [],
+    "patch": []
+  },
+  "hasUnknownVersions": false,
+  "ignoreSettings": {
+    "adminOnly": false,
+    "autoApproveIgnores": false,
+    "disregardFilesystemIgnores": false,
+    "reasonRequired": false
+  },
+  "isPrivate": true,
+  "licensesPolicy": {
+    "orgLicenseRules": null,
+    "severities": null
+  },
+  "ok": true,
+  "org": "a8e581b5-7685-4a06-aa48-f6b2520210e1",
+  "packageManager": "npm",
+  "path": "/home/runner/work/si784-2026-ii-si784-2026-ii-proyecto-group-9/si784-2026-ii-si784-2026-ii-proyecto-group-9",
+  "policy": "",
+  "projectName": "web",
+  "summary": "No known vulnerabilities",
+  "targetFile": "",
+  "uniqueCount": 0,
+  "vulnerabilities": []
+}
