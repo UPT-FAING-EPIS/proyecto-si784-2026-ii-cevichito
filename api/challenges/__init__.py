@@ -5,7 +5,7 @@ La solución de referencia solo la usan las pruebas (garantiza que cada reto tie
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -13,6 +13,22 @@ import yaml
 
 DATA = Path(__file__).resolve().parent / "data"
 LEVELS = ("básico", "intermedio", "avanzado")
+
+
+@dataclass(frozen=True)
+class Requirement:
+    """Lo que una función del enunciado debe seguir haciendo tras la corrección.
+
+    `calls`, `uses` y `texts` (cadenas literales que contienen ese texto) son grupos de alternativas:
+    basta una de cada grupo. Así se puede cambiar
+    *cómo* se hace (otra API segura), pero no borrar *lo que* se hace.
+    """
+
+    function: str
+    calls: tuple[tuple[str, ...], ...] = ()
+    uses: tuple[tuple[str, ...], ...] = ()
+    texts: tuple[tuple[str, ...], ...] = ()
+    returns: bool = False
 
 
 @dataclass(frozen=True)
@@ -30,6 +46,22 @@ class Challenge:
     hints: tuple[str, ...]
     starter: str
     solution: str
+    requires: tuple[Requirement, ...] = field(default=())
+
+
+def _groups(raw) -> tuple[tuple[str, ...], ...]:
+    return tuple(tuple([g] if isinstance(g, str) else g) for g in (raw or ()))
+
+
+def _requirements(name: str, raw: dict) -> tuple[Requirement, ...]:
+    out = []
+    for function, spec in raw.items():
+        unknown = set(spec) - {"calls", "uses", "texts", "returns"}
+        if unknown:
+            raise ValueError(f"{name}: claves desconocidas en requires.{function}: {sorted(unknown)}")
+        out.append(Requirement(function, _groups(spec.get("calls")), _groups(spec.get("uses")),
+                               _groups(spec.get("texts")), bool(spec.get("returns"))))
+    return tuple(out)
 
 
 def _load(folder: Path) -> Challenge:
@@ -40,11 +72,14 @@ def _load(folder: Path) -> Challenge:
         summary=meta["summary"], statement=meta["statement"], hints=tuple(meta.get("hints") or ()),
         starter=(folder / "vulnerable.py").read_text(encoding="utf-8"),
         solution=(folder / "solucion.py").read_text(encoding="utf-8"),
+        requires=_requirements(folder.name, meta.get("requires") or {}),
     )
     if ch.level not in LEVELS:
         raise ValueError(f"{folder.name}: nivel desconocido {ch.level!r}")
     if not ch.rules:
         raise ValueError(f"{folder.name}: el reto debe indicar al menos una regla")
+    if {r.function for r in ch.requires} - set(ch.keep):
+        raise ValueError(f"{folder.name}: requires solo puede nombrar funciones de keep")
     return ch
 
 

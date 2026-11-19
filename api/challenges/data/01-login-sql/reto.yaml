@@ -15,3 +15,8 @@ hints:
 - Busca la línea donde se concatena `usuario` dentro del texto SQL.
 - sqlite3 acepta marcadores `?` en la consulta y los valores en una tupla aparte.
 - La forma segura es `db.execute("... WHERE nombre = ? AND clave = ?", (usuario, clave))`.
+requires:
+  login:
+    calls: [[execute, executemany, query]]
+    uses: [[request.form, request.json, request.get_json, request.values]]
+    returns: true

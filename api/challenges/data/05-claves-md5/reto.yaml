@@ -17,3 +17,11 @@ hints:
 - MD5 y SHA-1 sirven para comprobar archivos, no para contraseñas.
 - Werkzeug, que viene con Flask, trae `generate_password_hash` y `check_password_hash`.
 - '`generate_password_hash` añade la sal y elige un algoritmo lento por ti.'
+requires:
+  registrar:
+    calls: [[generate_password_hash, hashpw, pbkdf2_hmac, scrypt, hash, make_password, hexdigest, digest]]
+    uses: [[USUARIOS]]
+  verificar:
+    calls: [[check_password_hash, checkpw, compare_digest, verify, check_password, hexdigest, digest]]
+    uses: [[USUARIOS]]
+    returns: true

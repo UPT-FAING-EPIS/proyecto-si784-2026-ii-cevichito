@@ -15,3 +15,8 @@ hints:
 - '`os.path.join` no impide que el nombre contenga `..`.'
 - 'Flask tiene una función pensada para esto: `send_from_directory(carpeta, nombre)`.'
 - '`send_from_directory` rechaza cualquier nombre que salga de la carpeta indicada.'
+requires:
+  descargar:
+    calls: [[send_from_directory, send_file, safe_join, open]]
+    uses: [[request.args, request.values]]
+    returns: true

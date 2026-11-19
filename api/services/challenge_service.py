@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from sast.rules.api import Severity
 
-from ..challenges import Challenge
+from ..challenges import Challenge, Requirement
 from ..errors import ApiError
 from ..extensions import db
 from ..models.entities import Occurrence, Project, Scan, User, utcnow
@@ -40,13 +40,82 @@ def check_submission(ch: Challenge, code: object, settings) -> str:
     except SyntaxError as exc:
         raise ApiError(422, "syntax_error", f"El código tiene un error de sintaxis en la línea {exc.lineno}: {exc.msg}.",
                        line=exc.lineno) from None
-    defined = {n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-    missing = [name for name in ch.keep if name not in defined]
+    functions = {n.name: n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    missing = [name for name in ch.keep if name not in functions]
     if missing:
         names = ", ".join(f"`{n}`" for n in missing)
         raise ApiError(422, "missing_functions",
                        f"Corrige el código sin borrarlo: falta la función {names} del enunciado.", functions=missing)
+    for req in ch.requires:
+        problem = _unmet(req, functions)
+        if problem:
+            raise ApiError(422, "behavior_missing",
+                           f"Corrige el código sin borrarlo: tu función `{req.function}` {problem}.",
+                           function=req.function)
     return code
+
+
+# --- Comprobación de comportamiento (sin ejecutar el código) ----------------------------------------
+
+def _dotted(node: ast.AST) -> str | None:
+    """`a.b.c` para Name/Attribute; `?.c` si la base es otra expresión, p. ej. `get_db().execute`."""
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+    elif parts:
+        parts.append("?")
+    else:
+        return None
+    return ".".join(reversed(parts))
+
+
+def _reach(name: str, functions: dict, seen: set[str]) -> list[ast.AST]:
+    """La función y las funciones del módulo que llama (el arreglo puede ir en un helper)."""
+    if name in seen or name not in functions:
+        return []
+    seen.add(name)
+    nodes = [functions[name]]
+    for n in ast.walk(functions[name]):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name):
+            nodes += _reach(n.func.id, functions, seen)
+    return nodes
+
+
+def _call_matches(dotted: str, spec: str) -> bool:
+    last = spec.rsplit(".", 1)[-1]
+    return dotted == spec or dotted.endswith("." + spec) or dotted == last or (
+        "." not in spec and dotted.endswith("." + last))
+
+
+def _unmet(req: Requirement, functions: dict) -> str | None:
+    nodes = _reach(req.function, functions, set())
+    calls, refs, texts, returns = set(), set(), [], False
+    for fn in nodes:
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Call) and (d := _dotted(n.func)):
+                calls.add(d)
+            if isinstance(n, (ast.Name, ast.Attribute)) and (d := _dotted(n)):
+                parts = d.split(".")
+                refs.update(".".join(parts[:i]) for i in range(1, len(parts) + 1))
+            if isinstance(n, ast.Constant) and isinstance(n.value, str):
+                texts.append(n.value)
+            if isinstance(n, ast.Return) and n.value is not None and fn is nodes[0]:
+                returns = True
+    for group in req.calls:
+        if not any(_call_matches(c, spec) for c in calls for spec in group):
+            return f"ya no llama a `{group[0]}` (ni a una alternativa)"
+    for group in req.uses:
+        if not any(spec in refs for spec in group):
+            return f"ya no usa `{group[0]}`"
+    for group in req.texts:
+        if not any(spec in s for s in texts for spec in group):
+            return f"ya no envía `{group[0]}`"
+    if req.returns and not returns:
+        return "ya no devuelve una respuesta (`return`)"
+    return None
 
 
 def submit(user: User, ch: Challenge, code: object, settings, request_id: str | None = None) -> Scan:

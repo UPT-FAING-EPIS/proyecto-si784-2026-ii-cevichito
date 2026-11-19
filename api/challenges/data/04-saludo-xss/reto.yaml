@@ -15,3 +15,7 @@ hints:
 - El HTML se arma concatenando `nombre` directamente.
 - Escapar convierte `<` en `&lt;`, de modo que el navegador lo muestra en lugar de interpretarlo.
 - Usa `escape(nombre)` de `markupsafe` antes de insertarlo en el HTML.
+requires:
+  saludo:
+    uses: [[request.args, request.values]]
+    returns: true

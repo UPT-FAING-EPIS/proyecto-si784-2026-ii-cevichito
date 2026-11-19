@@ -34,6 +34,10 @@ Característica: Retos de corrección
     Cuando envío un código sin las funciones del reto "01-login-sql"
     Entonces el envío se rechaza con el error "missing_functions"
 
+  Escenario: Vaciar la función del reto tampoco cuenta como corregir
+    Cuando envío el código "def login(): return 'ok'" al reto "01-login-sql"
+    Entonces el envío se rechaza con el error "behavior_missing"
+
   Escenario: Un código con errores de sintaxis se rechaza sin analizarlo
     Cuando envío el código "def login(:" al reto "01-login-sql"
     Entonces el envío se rechaza con el error "syntax_error"

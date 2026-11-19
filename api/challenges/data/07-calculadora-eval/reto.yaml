@@ -14,3 +14,7 @@ hints:
 - '`eval` ejecuta cualquier código Python, no solo aritmética.'
 - 'El módulo `ast` analiza la expresión sin ejecutarla: `ast.parse(expr, mode="eval")`.'
 - Recorre el árbol y acepta solo números (`ast.Constant`) y operaciones `+ - * /` (`ast.BinOp`).
+requires:
+  calcular:
+    uses: [[request.args, request.values]]
+    returns: true

@@ -15,3 +15,7 @@ hints:
 - '`pickle.loads` puede ejecutar código; nunca debe recibir datos de fuera.'
 - 'JSON solo representa datos: números, textos, listas y diccionarios.'
 - Cambia `pickle.loads(...)` por `json.loads(...)` y comprueba que el resultado sea un diccionario.
+requires:
+  preferencias:
+    uses: [[request.cookies]]
+    returns: true

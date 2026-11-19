@@ -52,6 +52,7 @@ Característica: Retos de corrección
 | Retos de corrección | CUS-26, CUS-27, CUS-28 | Cada reto se supera con una corrección real: **8 escenarios**, uno por reto (el código de partida da «sigue» y la solución da «superado») | ✅ ×8 |
 | | | Silenciar el aviso con `# nosec` no cuenta como corregir | ✅ |
 | | | Borrar el código no cuenta como corregir (`missing_functions`) | ✅ |
+| | | Vaciar la función del reto tampoco cuenta como corregir (`behavior_missing`) | ✅ |
 | | | Un código con errores de sintaxis se rechaza sin analizarlo (`syntax_error`) | ✅ |
 | Cada usuario solo ve lo suyo | CUS-04, CUS-05 | Otro estudiante no puede abrir mi proyecto (404) ni lo ve en su lista | ✅ |
 | | | Sin iniciar sesión no se accede a la API (401) | ✅ |

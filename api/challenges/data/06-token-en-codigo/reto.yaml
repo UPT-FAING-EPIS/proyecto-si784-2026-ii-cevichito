@@ -15,3 +15,8 @@ hints:
 - Un secreto en el código queda para siempre en el historial de git.
 - Las variables de entorno son la forma habitual de pasar secretos a una aplicación.
 - Lee el token con `os.environ["PAGOS_TOKEN"]` dentro de `cobrar`.
+requires:
+  cobrar:
+    calls: [[requests.post, requests.request, post, urlopen]]
+    texts: [[Authorization, Bearer]]
+    returns: true
