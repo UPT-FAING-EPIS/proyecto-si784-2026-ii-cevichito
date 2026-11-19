@@ -16,9 +16,7 @@ Curso: CALIDAD Y PRUEBAS DE SOFTWARE (SI-784)
 
 Docente: Mg. Ing. Patrick José Cuadros Quiroga
 
-Integrantes:
-
-**Sagua Ramos, Gustavo Alonso** **2018062254**
+Integrante:
 
 **Serrano Ibañez, Nestor Juice Yomar** **2022075747**
 
@@ -35,7 +33,7 @@ Integrantes:
 | CONTROL DE VERSIONES |  |  |  |  |  |
 |---|---|---|---|---|---|
 | Versión | Hecha por | Revisada por | Aprobada por | Fecha | Motivo |
-| 1.0 | SRGA, SINJ |  |  | 14/11/2026 | Versión original |
+| 1.0 | SINJ |  |  | 14/11/2026 | Versión original |
 
 **Índice**
 
@@ -150,7 +148,7 @@ Desarrollar una herramienta de análisis estático de seguridad didáctica y aut
 
 ### Factibilidad Técnica
 
-El análisis técnico demuestra la factibilidad del proyecto porque el stack elegido (Python 3.12, Flask, PostgreSQL 16, React 19 y Docker) es maduro, de código abierto y conocido por el equipo, funciona con los equipos personales de los dos integrantes y se despliega en servicios en la nube de plan gratuito. Además, la versión 0.1 ya demostró la viabilidad del motor de reglas, y el benchmark sobre OWASP Benchmark for Python (1230 casos) confirma resultados competitivos: Youden medio de +20 para SAST Studio, frente a +17 de Bandit 1.9.4 y +4 de Semgrep CE 1.100.0.
+El análisis técnico demuestra la factibilidad del proyecto porque el stack elegido (Python 3.12, Flask, PostgreSQL 16, React 19 y Docker) es maduro, de código abierto y conocido por el equipo, funciona con el equipo personal del integrante y se despliega en servicios en la nube de plan gratuito. Además, la versión 0.1 ya demostró la viabilidad del motor de reglas, y el benchmark sobre OWASP Benchmark for Python (1230 casos) confirma resultados competitivos: Youden medio de +20 para SAST Studio, frente a +17 de Bandit 1.9.4 y +4 de Semgrep CE 1.100.0.
 
 *Tabla 2: Especificaciones de Hardware para el Proyecto*
 
@@ -165,7 +163,7 @@ El análisis técnico demuestra la factibilidad del proyecto porque el stack ele
 
 Fuente Elaboración Propia
 
-Nota. Los requerimientos contemplan los equipos de desarrollo de los dos integrantes, ya disponibles, y los servicios en la nube de plan gratuito usados en producción.
+Nota. Los requerimientos contemplan el equipo de desarrollo del integrante, ya disponible, y los servicios en la nube de plan gratuito usados en producción.
 
 *Tabla 3: Características de Software (Stack Tecnológico)*
 

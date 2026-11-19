@@ -16,9 +16,7 @@ Curso: CALIDAD Y PRUEBAS DE SOFTWARE (SI-784)
 
 Docente: Mg. Ing. Patrick José Cuadros Quiroga
 
-Integrantes:
-
-**Sagua Ramos, Gustavo Alonso** **2018062254**
+Integrante:
 
 **Serrano Ibañez, Nestor Juice Yomar** **2022075747**
 
@@ -29,7 +27,7 @@ Integrantes:
 | CONTROL DE VERSIONES |  |  |  |  |  |
 |---|---|---|---|---|---|
 | Versión | Hecha por | Revisada por | Aprobada por | Fecha | Motivo |
-| 1.0 | SRGA, SINJ |  |  | 14/11/2026 | Versión original |
+| 1.0 | SINJ |  |  | 14/11/2026 | Versión original |
 
 ## SAST Studio: Analizador Estático de Seguridad Didáctico y Autoalojado
 
@@ -40,7 +38,7 @@ Integrantes:
 | CONTROL DE VERSIONES |  |  |  |  |  |
 |---|---|---|---|---|---|
 | Versión | Hecha por | Revisada por | Aprobada por | Fecha | Motivo |
-| 1.0 | SRGA, SINJ |  |  | 14/11/2026 | Versión original |
+| 1.0 | SINJ |  |  | 14/11/2026 | Versión original |
 
 **Índice**
 
@@ -187,7 +185,7 @@ Una solución exitosa debería: explicar cada hallazgo con su corrección y ejem
 | Escuela Profesional de Ingeniería de Sistemas – UPT | Organización usuaria en la que se emplea la herramienta dentro de los cursos de programación y de calidad. | Proveer el contexto académico, validar el uso didáctico de la herramienta y, si lo decide, alojar una instancia en un servidor propio. |
 | Docentes de cursos de programación y seguridad | Profesores que proponen trabajos y revisan el código de sus estudiantes. | Usar los informes, el catálogo de reglas y las métricas para orientar y evaluar el progreso. |
 | Estudiantes y desarrolladores | Personas que escriben código y aprenden a reconocer y corregir vulnerabilidades. | Escanear su código, estudiar las explicaciones, corregir y clasificar los hallazgos. |
-| Equipo de desarrollo (SRGA, SINJ) | Integrantes del proyecto en el curso Calidad y Pruebas de Software. | Construir, probar, documentar y desplegar SAST Studio, y mantener el catálogo de reglas y el benchmark. |
+| Equipo de desarrollo (SINJ) | Integrante del proyecto en el curso Calidad y Pruebas de Software. | Construir, probar, documentar y desplegar SAST Studio, y mantener el catálogo de reglas y el benchmark. |
 | Administrador del Sistema | Responsable técnico de la instalación (Render + Neon o Docker en un servidor propio). | Configurar variables de entorno, límites y proveedor OIDC, vigilar la disponibilidad y las copias de seguridad de la base de datos. |
 
 Fuente Elaboración Propia
@@ -225,7 +223,7 @@ Aplicación web de acceso autenticado servida por HTTPS desde un único origen (
 | Docentes | Profesores de cursos de programación, seguridad o calidad. | Proponer trabajos y revisar el avance en seguridad de sus estudiantes. | Ver en las métricas que los hallazgos corregidos aumentan y que los nuevos disminuyen entre entregas. | Medio (al revisar trabajos y preparar clases). |
 | Estudiantes | Usuarios principales que aprenden seguridad con su propio código. | Escanear, entender y corregir sus hallazgos. | Comprender cada hallazgo sin recurrir a documentación en inglés y corregirlo con el ejemplo propuesto. | Alto (en cada entrega o práctica). |
 | EPIS – UPT | Organización académica usuaria. | Valorar la adopción de la herramienta en sus cursos. | Disponer de una herramienta gratuita y autoalojada en la que el código no sale de la universidad. | Bajo (decisiones de adopción). |
-| Equipo de desarrollo | Integrantes del proyecto (SRGA, SINJ). | Entregar el producto refactorizado y documentado. | CI en verde, benchmark reproducible y despliegue operativo en Render + Neon. | Alto y continuo durante el semestre. |
+| Equipo de desarrollo | Integrante del proyecto (SINJ). | Entregar el producto refactorizado y documentado. | CI en verde, benchmark reproducible y despliegue operativo en Render + Neon. | Alto y continuo durante el semestre. |
 
 Fuente Elaboración Propia
 

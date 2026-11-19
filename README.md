@@ -4,9 +4,7 @@
 
 - **Asignatura:** Calidad y Pruebas de Software (SI-784)
 - **Docente:** Mg. Ing. Patrick José Cuadros Quiroga
-- **Integrantes:**
-  - Sagua Ramos, Gustavo Alonso (2018062254)
-  - Serrano Ibañez, Nestor Juice Yomar (2022075747)
+- **Integrante:** Serrano Ibañez, Nestor Juice Yomar (2022075747)
 
 | Enlace | URL |
 |---|---|
@@ -309,7 +307,6 @@ Esta sección la actualiza el workflow `documentacion.yml` a partir del código.
 - [Diagrama de clases](docs/arquitectura/diagrama-clases.md)
 - [Diagrama de componentes](docs/arquitectura/diagrama-componentes.md)
 - [Diagrama de despliegue](docs/arquitectura/diagrama-despliegue.md)
-- [Documentación técnica (clases y métodos)](https://nestorsnibz.github.io/sast-studio/), publicada en GitHub Pages
 
 <details><summary>Diagrama entidad-relación</summary>
 
