@@ -69,6 +69,24 @@ jobs:
         run: terraform validate
       - name: Pruebas
         run: terraform test -junit-xml=resultado-pruebas.xml
+      # El driver de PostgreSQL de Terraform no envía SNI, y Neon lo usa para saber a qué
+      # endpoint conectar. Se añade options=endpoint=<id> a la cadena (sin mostrarla en el log).
+      - name: Preparar la conexión del estado (Neon)
+        if: env.PG_CONN_STR != ''
+        working-directory: .
+        run: |
+          python3 - <<'EOF'
+          import os, urllib.parse as u
+          url = os.environ["PG_CONN_STR"]
+          p = u.urlsplit(url)
+          q = dict(u.parse_qsl(p.query))
+          if "neon.tech" in (p.hostname or "") and "options" not in q:
+              q["options"] = "endpoint=" + p.hostname.split(".")[0].removesuffix("-pooler")
+          nueva = u.urlunsplit(p._replace(query=u.urlencode(q)))
+          print(f"::add-mask::{nueva}")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write("PG_CONN_STR=" + nueva + chr(10))
+          EOF
       - name: Plan (solo con credenciales)
         id: plan
         if: env.RENDER_API_KEY != '' && env.NEON_API_KEY != '' && env.PG_CONN_STR != ''
@@ -103,6 +121,24 @@ jobs:
         with:
           terraform_version: "1.16.4"
           terraform_wrapper: false
+      # El driver de PostgreSQL de Terraform no envía SNI, y Neon lo usa para saber a qué
+      # endpoint conectar. Se añade options=endpoint=<id> a la cadena (sin mostrarla en el log).
+      - name: Preparar la conexión del estado (Neon)
+        if: env.PG_CONN_STR != ''
+        working-directory: .
+        run: |
+          python3 - <<'EOF'
+          import os, urllib.parse as u
+          url = os.environ["PG_CONN_STR"]
+          p = u.urlsplit(url)
+          q = dict(u.parse_qsl(p.query))
+          if "neon.tech" in (p.hostname or "") and "options" not in q:
+              q["options"] = "endpoint=" + p.hostname.split(".")[0].removesuffix("-pooler")
+          nueva = u.urlunsplit(p._replace(query=u.urlencode(q)))
+          print(f"::add-mask::{nueva}")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write("PG_CONN_STR=" + nueva + chr(10))
+          EOF
       - name: Comprobar credenciales
         run: |
           for v in RENDER_API_KEY RENDER_OWNER_ID NEON_API_KEY PG_CONN_STR; do
