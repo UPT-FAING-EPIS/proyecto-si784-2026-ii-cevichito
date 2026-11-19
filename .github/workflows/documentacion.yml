@@ -55,6 +55,9 @@ jobs:
 
   pages:
     name: Documentación técnica en GitHub Pages
+    # GitHub Pages no está disponible en repositorios privados de este plan: ahí la
+    # documentación queda como artefacto (job de abajo).
+    if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,3 +86,27 @@ jobs:
           path: site
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  artefacto:
+    name: Documentación técnica como artefacto (repositorio privado)
+    if: github.event.repository.visibility != 'public'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Generar con pdoc
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          pip install pdoc==16.0.0
+          python -m pdoc api sast -o site --footer-text "SAST Studio · documentación técnica"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: documentacion-tecnica
+          path: site
