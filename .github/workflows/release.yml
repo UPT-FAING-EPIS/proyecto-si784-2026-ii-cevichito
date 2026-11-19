@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TAG: ${{ inputs.tag || github.ref_name }}
+  # Acepta "v1.0.0" o "1.0.0" en la ejecución manual.
+  TAG: ${{ inputs.tag && (startsWith(inputs.tag, 'v') && inputs.tag || format('v{0}', inputs.tag)) || github.ref_name }}
 
 jobs:
   pruebas:

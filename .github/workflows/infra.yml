@@ -13,7 +13,7 @@ name: Infraestructura (Terraform)
 #   NEON_API_KEY                      cuenta de Neon
 #   TF_STATE_PG                       cadena de PostgreSQL donde se guarda el estado de Terraform
 #   DATABASE_URL                      cadena directa de Neon para la aplicación
-# Variable: NEON_ORG_ID (org-...)
+# NEON_ORG_ID (org-...): como variable o como secreto
 
 on:
   push:
@@ -46,7 +46,7 @@ env:
   NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
   PG_CONN_STR: ${{ secrets.TF_STATE_PG }}
   TF_VAR_database_url: ${{ secrets.DATABASE_URL }}
-  TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID }}
+  TF_VAR_neon_org_id: ${{ vars.NEON_ORG_ID || secrets.NEON_ORG_ID }}
 
 jobs:
   terraform:
