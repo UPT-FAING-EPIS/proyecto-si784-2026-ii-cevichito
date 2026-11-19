@@ -17,6 +17,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      linea_base:
+        description: "Escanear también el proyecto original (antes de la refactorización) para la línea base"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -66,6 +71,9 @@ jobs:
             -Dsonar.organization=${{ env.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.qualitygate.wait=true
+        # Esperamos al Quality Gate para que el reporte lea datos ya procesados, pero sin bloquear.
+        continue-on-error: true
 
   semgrep:
     name: Semgrep CE (reglas públicas)
@@ -142,3 +150,74 @@ jobs:
         with:
           name: snyk
           path: snyk-*
+
+  # Junta los tres resultados en un solo reporte (resumen de la ejecución + artefacto).
+  reporte:
+    name: Reporte de hallazgos
+    needs: [sonarcloud, semgrep, snyk]
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          path: resultados
+      - name: Armar el reporte
+        run: |
+          python scripts/reporte_calidad.py \
+            --semgrep resultados/semgrep/semgrep.json \
+            --snyk-dir resultados/snyk \
+            --sonar-key "${{ env.SONAR_TOKEN != '' && env.SONAR_PROJECT_KEY || '' }}" \
+            --base docs/calidad/linea-base \
+            --salida reporte-calidad.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reporte-calidad
+          path: reporte-calidad.md
+
+  # Solo a mano: escanea el proyecto original con las mismas herramientas. Sus resultados se
+  # guardan en docs/calidad/linea-base/ y sirven para contar los hallazgos superados.
+  linea_base:
+    name: Línea base (proyecto original)
+    if: github.event_name == 'workflow_dispatch' && inputs.linea_base
+    runs-on: ubuntu-latest
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: gs2018062254-sudo/Proyecto-Calidad
+          ref: 4d49449585862cb317976ca4b3ee5b5f1a0e0630
+      - name: Semgrep
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.100.0 \
+            semgrep scan --config p/default --metrics=off \
+            --exclude samples --exclude tests --json --output semgrep.json .
+      - uses: actions/setup-python@v5
+        if: env.SNYK_TOKEN != ''
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        if: env.SNYK_TOKEN != ''
+        with:
+          node-version: "22"
+      - name: Snyk
+        if: env.SNYK_TOKEN != ''
+        run: |
+          npm install -g snyk@1
+          pip install -r requirements.txt
+          (cd web && npm ci --no-audit --no-fund)
+          snyk test --file=requirements.txt --package-manager=pip --command=python --json-file-output=snyk-python.json || [ $? -eq 1 ]
+          snyk test --file=web/package-lock.json --json-file-output=snyk-web.json || [ $? -eq 1 ]
+          snyk code test --sarif-file-output=snyk-code.sarif || [ $? -eq 1 ]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linea-base
+          path: |
+            semgrep.json
+            snyk-*
