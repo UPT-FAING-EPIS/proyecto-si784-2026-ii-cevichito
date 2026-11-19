@@ -28,6 +28,46 @@ código a terceros.
 Está pensado para **aprender seguridad**: en un curso, en un laboratorio o por tu cuenta. No
 pretende sustituir a un escáner de producción como Semgrep Pro o CodeQL.
 
+## Problema
+
+En los cursos de programación, la seguridad del código casi nunca se revisa: un docente no
+puede leer cada entrega buscando inyecciones SQL, secretos en el código o funciones
+peligrosas, y el estudiante no recibe retroalimentación sobre esos fallos.
+
+- **Las herramientas existentes están pensadas para profesionales, no para aprender.** Bandit,
+  Semgrep o CodeQL dan mensajes cortos en inglés sin explicar por qué el fallo es peligroso ni
+  cómo corregirlo. El plan gratis de Semgrep ya cubre la detección ([Semgrep Pricing](https://semgrep.dev/pricing)),
+  así que el hueco no está en detectar más sino en enseñar a corregir.
+- **Las opciones gratuitas con panel no siguen los datos.** SonarQube Community Build no incluye
+  análisis de *taint* para inyecciones ([Sonar Community](https://community.sonarsource.com/t/taint-analysis-capability/70624)),
+  y Horusec, el orquestador SAST abierto con panel, no publica versiones desde 2022
+  ([ecosyste.ms](https://issues.ecosyste.ms/hosts/GitHub/repositories/ZupIT%2Fhorusec/issues)).
+- **Incluso las herramientas maduras dejan pasar muchas vulnerabilidades**: un estudio sobre
+  herramientas SAST de Java encontró recall bajo en casos reales ([Li et al., FSE 2023](https://kaixuanli-ecnu.github.io/papers/java-sast-fse23.pdf)),
+  así que el estudiante tiene que aprender a reconocer el fallo, no solo a leer una alerta.
+- **No se mide el progreso**: cada análisis es aislado, no se recuerda qué se corrigió ni qué
+  falsos positivos ya se revisaron entre una entrega y la siguiente.
+
+Hay asignaturas que ya usan SAST con fines didácticos, por ejemplo en la Universidad de Cádiz
+([UCA](https://indoc.uca.es/memorias/sol-202400284950-tra.pdf)). El detalle está en el FD01
+(planteamiento del problema) y en [`docs/spec/especificacion.md`](docs/spec/especificacion.md), sección 2.
+
+## Objetivos
+
+**General:** desarrollar una herramienta SAST didáctica y autoalojada que detecte
+vulnerabilidades OWASP Top 10 / CWE, explique cada hallazgo con su corrección y mida el progreso
+del estudiante entre escaneos, sin costo de infraestructura.
+
+| Objetivo específico | Indicador | Meta | Resultado medido |
+|---|---|---|---|
+| Detectar con precisión comparable a las herramientas libres | Índice de Youden medio en OWASP Benchmark for Python (1230 casos) | ≥ Bandit | **+20** (Bandit +17, Semgrep CE +4) — [benchmark](docs/benchmark.md) |
+| Explicar cada hallazgo | Reglas con explicación, corrección y ejemplos malo/bueno | 100 % | 22 de 22 reglas ([catálogo](docs/rules/README.md)) |
+| Enseñar a corregir | Retos de corrección con veredicto automático | ≥ 8 | 8 retos (`/retos`) |
+| Medir el progreso | Métricas por proyecto: abiertos por severidad, nuevos vs corregidos, tiempo de corrección | 3 métricas | 4 (incluye densidad por KLOC) |
+| Responder rápido | La API encola el escaneo sin esperar el análisis | `POST /scans` < 1 s | 202 inmediato; análisis en el worker |
+| Costo cero de infraestructura | Costo mensual del despliegue | $0 | $0 ([reporte de Terraform](infra/README.md)) |
+| Calidad verificable | Pruebas automatizadas en CI | ≥ 300 | 336 de backend y 98 de la web, más sistema, interfaz y aceptación |
+
 ## Qué hace
 
 - **Analiza código Python** con reglas sobre el árbol sintáctico y un análisis de *taint* que
@@ -228,6 +268,25 @@ Cómo ejecutarlas en local: [`docs/pruebas/README.md`](docs/pruebas/README.md).
 | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Contrato de la API `/api/v1`. |
 | [`docs/rules/`](docs/rules/README.md) | Una página por regla. |
 
+## Aspectos no funcionales
+
+| Aspecto | Cómo se resuelve | Dónde está |
+|---|---|---|
+| **Manejo de sesiones** | Sesión en el servidor: el navegador solo guarda una cookie `__Host-` HttpOnly, Secure y SameSite=Strict; en la base se guarda su hash. Caduca a las 2 h sin uso y a las 12 h en total; el logout la revoca. Protección CSRF con token ligado a la sesión. | `api/security/session.py`, `api/security/csrf.py`, tabla `sessions` |
+| **Historial** | Cada escaneo queda guardado; cada issue conserva su historial de cambios de estado, triage y comentarios, y se reconoce entre escaneos por su huella `sastfp/v1`. | tablas `scans`, `issues`, `occurrences`, `issue_events` |
+| **Caché** | Si llega el mismo código con las mismas reglas, se reutiliza el resultado (7 días) en vez de volver a analizarlo. | `api/services/result_cache.py`, tabla `scan_result_cache` |
+| **Logs** | Logs en JSON por stdout con `request_id`, ruta, estado y duración de cada petición; auditoría de inicios de sesión, denegaciones y borrados. | `api/logging_setup.py`, `api/services/audit.py`, tabla `audit_log` |
+| **Telemetría** | Dashboard de uso del producto (`/uso`): usuarios activos, escaneos por día, tiempos (mediana y p95), tasa de fallos, reglas más frecuentes y retos. Además `/healthz` y `/readyz` para el monitoreo de Render. | `api/services/usage_service.py`, `web/src/pages/Usage.tsx` |
+
+## Integraciones con aplicaciones externas
+
+| Aplicación | Para qué | Dónde está |
+|---|---|---|
+| **Google** (OpenID Connect) | Inicio de sesión con la cuenta de Google, con PKCE, `state` y `nonce`. | `api/services/auth_service.py` |
+| **Microsoft Entra ID u otro proveedor OIDC** | Mismo inicio de sesión con la cuenta institucional; se activa con `OIDC_ISSUER`. | `api/settings.py`, `.env.example` |
+| **GitHub** | Analizar un repositorio público: descarga el código por la API de GitHub. | `api/services/github_fetch.py` |
+| **GitHub Code Scanning** y DefectDojo | Los informes se exportan en SARIF 2.1.0 para subirlos a esas plataformas. | `sast/reports/` |
+
 ## Automatizaciones en GitHub Actions
 
 | Workflow | Qué hace | Reporte |
@@ -250,7 +309,7 @@ Esta sección la actualiza el workflow `documentacion.yml` a partir del código.
 - [Diagrama de clases](docs/arquitectura/diagrama-clases.md)
 - [Diagrama de componentes](docs/arquitectura/diagrama-componentes.md)
 - [Diagrama de despliegue](docs/arquitectura/diagrama-despliegue.md)
-- [Documentación técnica (clases y métodos)](https://upt-faing-epis.github.io/proyecto-si784-2026-ii-cevichito/), publicada en GitHub Pages
+- [Documentación técnica (clases y métodos)](https://nestorsnibz.github.io/sast-studio/), publicada en GitHub Pages
 
 <details><summary>Diagrama entidad-relación</summary>
 
