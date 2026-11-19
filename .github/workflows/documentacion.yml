@@ -1,0 +1,85 @@
+name: Documentación
+
+# 1. Regenera el diccionario de datos y los diagramas (ER, clases, componentes y despliegue)
+#    desde el código y los guarda en README.md y docs/arquitectura/. Si cambió algo, hace commit.
+# 2. Genera la documentación técnica (cada clase, método y propiedad) con pdoc y la publica
+#    en GitHub Pages.
+
+on:
+  push:
+    branches: [main]
+    paths: ["api/**", "sast/**", "scripts/generar_docs.py", "docker-compose.yml", "render.yaml",
+            ".github/workflows/documentacion.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: documentacion
+  cancel-in-progress: false
+
+env:
+  ENVIRONMENT: test
+  SECRET_KEY: solo-para-generar-docs-0123456789abcdef
+  SESSION_HMAC_KEY: solo-para-generar-docs-0123456789abcdef
+  DATABASE_URL: "sqlite://"
+
+jobs:
+  readme:
+    name: README con diagramas y diccionario de datos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Instalar
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+      - name: Generar
+        run: python scripts/generar_docs.py
+      - name: Guardar cambios
+        run: |
+          if git diff --quiet; then
+            echo "La documentación ya estaba al día."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/arquitectura
+          git commit -m "Actualiza la documentación generada"
+          git push
+
+  pages:
+    name: Documentación técnica en GitHub Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Instalar
+        run: |
+          pip install -r requirements.lock
+          pip install -e . --no-deps
+          pip install pdoc==16.0.0
+      - name: Generar con pdoc
+        run: python -m pdoc api sast -o site --footer-text "SAST Studio · documentación técnica"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

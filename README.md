@@ -228,6 +228,521 @@ Cómo ejecutarlas en local: [`docs/pruebas/README.md`](docs/pruebas/README.md).
 | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Contrato de la API `/api/v1`. |
 | [`docs/rules/`](docs/rules/README.md) | Una página por regla. |
 
+## Automatizaciones en GitHub Actions
+
+| Workflow | Qué hace | Reporte |
+|---|---|---|
+| `ci-quality.yml` | Pruebas del backend (SQLite y PostgreSQL), web y autoanálisis con Bandit | cobertura, SARIF |
+| `pruebas.yml` | Unitarias con mutación, integración, sistema, interfaz y aceptación | `reportes-de-pruebas` |
+| `analisis-estatico.yml` | SonarCloud, Semgrep y Snyk (en los repositorios del curso) | `reporte-calidad`: Bugs, Vulnerabilities, Security Hotspots y hallazgos superados |
+| `infra.yml` | Terraform de Render y Neon: validar, probar, planificar y aplicar | `reporte-infra`: pruebas superadas y costo mensual |
+| `release.yml` | Con una etiqueta `vX.Y.Z`: pruebas, imagen en ghcr.io, release y despliegue en Render | release en GitHub |
+| `documentacion.yml` | Diccionario de datos y diagramas en este README; documentación técnica en GitHub Pages | GitHub Pages |
+| — | Dashboard de uso del producto en la aplicación: página `/uso` (administradores en `ADMIN_EMAILS`) | — |
+
+<!-- DOCS:INICIO -->
+## Documentación generada
+
+Esta sección la actualiza el workflow `documentacion.yml` a partir del código. No la edites a mano.
+
+- [Diccionario de datos](docs/arquitectura/diccionario-datos.md) (11 tablas)
+- [Diagrama entidad-relación](docs/arquitectura/diagrama-er.md)
+- [Diagrama de clases](docs/arquitectura/diagrama-clases.md)
+- [Diagrama de componentes](docs/arquitectura/diagrama-componentes.md)
+- [Diagrama de despliegue](docs/arquitectura/diagrama-despliegue.md)
+
+<details><summary>Diagrama entidad-relación</summary>
+
+```mermaid
+erDiagram
+    audit_log {
+        bigint id PK
+        datetime at
+        varchar event
+        varchar user_sub
+        varchar ip
+        varchar user_agent
+        varchar request_id
+        varchar target_type
+        varchar target_id
+        varchar outcome
+        json details
+    }
+    issue_events {
+        bigint id PK
+        char issue_id FK
+        char user_id FK
+        varchar kind
+        varchar from_state
+        varchar to_state
+        text comment
+        char scan_id FK
+        datetime created_at
+    }
+    issues {
+        char id PK
+        char project_id FK
+        varchar rule_id FK
+        varchar category
+        varchar fingerprint
+        smallint fingerprint_version
+        varchar line_hash
+        varchar snippet_hash
+        varchar lifecycle
+        varchar triage
+        text triage_justification
+        smallint severity
+        varchar current_path
+        integer current_line
+        text message
+        char first_seen_scan_id FK
+        char last_seen_scan_id FK
+        datetime first_seen_at
+        datetime fixed_at
+        integer reopened_count
+        char assignee_id FK
+    }
+    occurrences {
+        char id PK
+        char scan_id FK
+        char issue_id FK
+        varchar path
+        integer start_line
+        integer end_line
+        integer start_col
+        integer end_col
+        text message
+        smallint severity
+        smallint confidence
+        text snippet
+        varchar line_hash
+        json trace
+        varchar variant
+        boolean suppressed
+        varchar suppression_reason
+        varchar change
+    }
+    projects {
+        char id PK
+        char owner_id FK
+        varchar name
+        datetime created_at
+        varchar challenge_id
+        datetime challenge_solved_at
+    }
+    rules {
+        varchar id PK
+        varchar tool
+        varchar name
+        smallint default_severity
+        smallint confidence
+        json cwe
+        json owasp
+        varchar kind
+        varchar engine
+        json previous_ids
+        json meta
+        varchar version
+    }
+    scan_result_cache {
+        varchar key PK
+        blob payload
+        datetime created_at
+        integer hits
+    }
+    scan_uploads {
+        char scan_id PK
+        blob content
+        varchar filename
+        varchar sha256
+        integer size
+        datetime created_at
+    }
+    scans {
+        char id PK
+        char project_id FK
+        char created_by FK
+        varchar source
+        varchar source_ref
+        varchar category
+        varchar commit_sha
+        varchar status
+        integer progress_done
+        integer progress_total
+        integer attempts
+        boolean cancel_requested
+        datetime heartbeat_at
+        varchar worker_id
+        datetime queued_at
+        datetime started_at
+        datetime finished_at
+        varchar error_code
+        json rules_enabled
+        json rules_requested
+        varchar engine_version
+        integer loc_total
+        integer files_scanned
+        json summary
+        json rule_errors
+        char baseline_scan_id FK
+        varchar request_id
+        boolean partial
+        boolean result_reused
+    }
+    sessions {
+        char id PK
+        char user_id FK
+        varchar token_hash
+        varchar csrf_secret
+        datetime created_at
+        datetime last_seen_at
+        datetime expires_at
+        datetime revoked_at
+        varchar ip
+        varchar user_agent
+    }
+    users {
+        char id PK
+        varchar google_sub
+        varchar email
+        varchar name
+        datetime created_at
+        datetime disabled_at
+    }
+    issues ||--o{ issue_events : "issue_id"
+    issues ||--o{ occurrences : "issue_id"
+    projects ||--o{ issues : "project_id"
+    projects ||--o{ scans : "project_id"
+    rules ||--o{ issues : "rule_id"
+    scans |o--o{ issue_events : "scan_id"
+    scans |o--o{ issues : "first_seen_scan_id"
+    scans |o--o{ issues : "last_seen_scan_id"
+    scans |o--o{ scans : "baseline_scan_id"
+    scans ||--o{ occurrences : "scan_id"
+    scans ||--o{ scan_uploads : "scan_id"
+    users |o--o{ issue_events : "user_id"
+    users |o--o{ issues : "assignee_id"
+    users |o--o{ scans : "created_by"
+    users ||--o{ projects : "owner_id"
+    users ||--o{ sessions : "user_id"
+```
+
+</details>
+
+<details><summary>Diagrama de clases</summary>
+
+```mermaid
+classDiagram
+    direction LR
+    class AuditLog {
+        +bigint id
+        +datetime at
+        +varchar event
+        +varchar user_sub
+        +varchar ip
+        +varchar user_agent
+        +varchar request_id
+        +varchar target_type
+        +varchar target_id
+        +varchar outcome
+        +json details
+    }
+    class AuthSession {
+        +char id
+        +char user_id
+        +varchar token_hash
+        +varchar csrf_secret
+        +datetime created_at
+        +datetime last_seen_at
+        +datetime expires_at
+        +datetime revoked_at
+        +varchar ip
+        +varchar user_agent
+    }
+    class Issue {
+        +char id
+        +char project_id
+        +varchar rule_id
+        +varchar category
+        +varchar fingerprint
+        +smallint fingerprint_version
+        +varchar line_hash
+        +varchar snippet_hash
+        +varchar lifecycle
+        +varchar triage
+        +text triage_justification
+        +smallint severity
+    }
+    class IssueEvent {
+        +bigint id
+        +char issue_id
+        +char user_id
+        +varchar kind
+        +varchar from_state
+        +varchar to_state
+        +text comment
+        +char scan_id
+        +datetime created_at
+    }
+    class Occurrence {
+        +char id
+        +char scan_id
+        +char issue_id
+        +varchar path
+        +integer start_line
+        +integer end_line
+        +integer start_col
+        +integer end_col
+        +text message
+        +smallint severity
+        +smallint confidence
+        +text snippet
+    }
+    class Project {
+        +char id
+        +char owner_id
+        +varchar name
+        +datetime created_at
+        +varchar challenge_id
+        +datetime challenge_solved_at
+    }
+    class RuleRecord {
+        +varchar id
+        +varchar tool
+        +varchar name
+        +smallint default_severity
+        +smallint confidence
+        +json cwe
+        +json owasp
+        +varchar kind
+        +varchar engine
+        +json previous_ids
+        +json meta
+        +varchar version
+    }
+    class Scan {
+        +char id
+        +char project_id
+        +char created_by
+        +varchar source
+        +varchar source_ref
+        +varchar category
+        +varchar commit_sha
+        +varchar status
+        +integer progress_done
+        +integer progress_total
+        +integer attempts
+        +boolean cancel_requested
+    }
+    class ScanResultCache {
+        +varchar key
+        +blob payload
+        +datetime created_at
+        +integer hits
+    }
+    class ScanUpload {
+        +char scan_id
+        +blob content
+        +varchar filename
+        +varchar sha256
+        +integer size
+        +datetime created_at
+    }
+    class User {
+        +char id
+        +varchar google_sub
+        +varchar email
+        +varchar name
+        +datetime created_at
+        +datetime disabled_at
+    }
+    class RuleMeta {
+        +str id
+        +str name
+        +str message
+        +Severity severity
+        +Confidence confidence
+        +tuple languages
+        +tuple cwe
+        +tuple owasp
+        +str kind
+        +str engine
+        +float security_severity
+        +tuple previous_ids
+        +to_dict()
+    }
+    class Finding {
+        +str rule_id
+        +str path
+        +int line
+        +int col
+        +int end_line
+        +int end_col
+        +str message
+        +Severity severity
+        +Confidence confidence
+        +tuple trace
+        +str variant
+        +bool suppressed
+        +sort_key()
+        +to_dict()
+        +with_()
+    }
+    class TraceStep {
+        +int line
+        +str description
+        +to_dict()
+    }
+    class RuleError {
+        +str rule_id
+        +str path
+        +str exc_type
+        +str message
+        +to_dict()
+    }
+    class PythonRule {
+        +check()
+        +finding()
+    }
+    class Engine {
+        +analyze()
+        +collect()
+        +scan_files()
+        +scan_path()
+        +scan_source()
+    }
+    class EngineConfig {
+        +Confidence min_confidence
+        +Severity min_severity
+        +bool exclude_tests
+        +tuple exclude_globs
+        +tuple excluded_dirs
+        +int max_file_bytes
+        +bool include_suppressed
+    }
+    class ScanReport {
+        +str target
+        +list findings
+        +list rule_errors
+        +list file_errors
+        +int files_scanned
+        +int loc_total
+        +list rules_enabled
+        +str engine_version
+        +str started_at
+        +str finished_at
+        +int duration_ms
+        +dict sources
+        +prune_sources()
+        +to_dict()
+    }
+    class FileContext {
+        +is_comment_line()
+        +line()
+        +qualname()
+        +snippet()
+        +suppression_for()
+    }
+    User "1" <-- "*" AuthSession
+    Project "1" <-- "*" Issue
+    RuleRecord "1" <-- "*" Issue
+    Scan "1" <-- "*" Issue
+    User "1" <-- "*" Issue
+    Issue "1" <-- "*" IssueEvent
+    User "1" <-- "*" IssueEvent
+    Scan "1" <-- "*" IssueEvent
+    Scan "1" <-- "*" Occurrence
+    Issue "1" <-- "*" Occurrence
+    User "1" <-- "*" Project
+    Project "1" <-- "*" Scan
+    User "1" <-- "*" Scan
+    Scan "1" <-- "*" Scan
+    Scan "1" <-- "*" ScanUpload
+    Engine ..> FileContext : analiza
+    Engine ..> ScanReport : produce
+    ScanReport o-- Finding
+    Finding o-- TraceStep
+    PythonRule ..> RuleMeta
+    Occurrence ..> Finding : se guarda como
+```
+
+</details>
+
+<details><summary>Diagrama de componentes</summary>
+
+```mermaid
+flowchart LR
+    usuario([Navegador])
+    subgraph web["SPA (React + Vite) — web/"]
+        paginas[Páginas] --> cliente[api/client.ts]
+    end
+    subgraph api["API Flask — api/"]
+        seguridad[security: sesión, CSRF, cabeceras]
+        c_auth["auth · /api/v1/auth"]
+        c_challenges["challenges · /api/v1/challenges"]
+        c_config["config · /api/v1/config"]
+        c_issues["issues · /api/v1/issues"]
+        c_projects["projects · /api/v1/projects"]
+        c_rules["rules · /api/v1/rules"]
+        c_scans["scans · /api/v1/scans"]
+        c_usage["usage · /api/v1/usage"]
+        servicios[services]
+        modelos[models: SQLAlchemy]
+    end 
+    worker[[Worker — api/worker]]
+    motor[[Motor SAST — sast/]]
+    db[(PostgreSQL)]
+    kv[(Valkey: límite de peticiones)]
+    google{{Google OIDC}}
+    github{{GitHub: descarga de repos}}
+    usuario --> paginas
+    cliente -->|"/api/v1, cookie + X-CSRF-Token"| seguridad
+    seguridad --> c_auth --> servicios
+    seguridad --> c_challenges --> servicios
+    seguridad --> c_config --> servicios
+    seguridad --> c_issues --> servicios
+    seguridad --> c_projects --> servicios
+    seguridad --> c_rules --> servicios
+    seguridad --> c_scans --> servicios
+    seguridad --> c_usage --> servicios
+    servicios --> modelos --> db
+    servicios --> kv
+    servicios --> google
+    worker -->|"cola: SELECT … SKIP LOCKED"| db
+    worker --> motor
+    worker --> github
+```
+
+</details>
+
+<details><summary>Diagrama de despliegue</summary>
+
+```mermaid
+flowchart TB
+    subgraph local["Local: docker compose"]
+        l_db["db<br/>postgres:16-alpine"]
+        l_valkey["valkey<br/>valkey/valkey:8-alpine"]
+        l_migrate["migrate<br/>sast-studio:local"]
+        l_api["api<br/>sast-studio:local · 8080:8000"]
+        l_worker["worker<br/>sast-studio:local"]
+    end
+    subgraph nube["Producción: Render + Neon"]
+        r_sast_studio["sast-studio<br/>web · plan free"]
+        r_sast_ratelimit["sast-ratelimit<br/>keyvalue · plan free"]
+        neon[(Neon PostgreSQL · plan free)]
+    end
+    l_api --> l_db
+    l_worker --> l_db
+    l_api --> l_valkey
+    l_migrate --> l_db
+    r_sast_studio --> neon
+    r_sast_studio --> r_sast_ratelimit
+    gh[GitHub Actions] -->|release: imagen + deploy hook| r_sast_studio
+```
+
+</details>
+<!-- DOCS:FIN -->
+
 ## Licencia
 
 MIT, según `pyproject.toml`.
